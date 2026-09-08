@@ -34,3 +34,13 @@ dotnet run --project src/Cli
 - Windows x64
 - RID: win-x64
 - Редактор: Visual Studio Code
+
+## Self-contained публікація
+
+Застосунок було опубліковано у self-contained режимі для двох RID:
+
+- win-x64 — 78 MB
+- linux-x64 — 80 MB
+
+Linux-версія вийшла приблизно на 2 MB більшою за Windows-версію.
+Обидві версії містять необхідний .NET Runtime і можуть запускатися без окремого встановлення .NET Runtime на відповідній платформі.
