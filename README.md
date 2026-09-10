@@ -35,6 +35,14 @@ dotnet run --project src/Cli
 - RID: win-x64
 - Редактор: Visual Studio Code
 
+### Вивід у форматі JSON
+
+Для запуску програми з виведенням інформації одним JSON-рядком:
+
+```bash
+dotnet run --project src/Cli -- --json
+```
+
 ## Self-contained публікація
 
 Застосунок було опубліковано у self-contained режимі для двох RID:
