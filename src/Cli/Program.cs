@@ -7,6 +7,7 @@ Console.WriteLine(new string('-', 52));
 
 Console.WriteLine($"ОС : {report.OsDescription}");
 Console.WriteLine($"Runtime : {report.FrameworkDescription}");
+Console.WriteLine($"Build : {EnvironmentInfo.BuildNote}");
 Console.WriteLine($"Архітектура : {report.ProcessArchitecture}");
 Console.WriteLine($"RID (визначено) : {report.DetectedRid}");
 Console.WriteLine($"RID (від .NET) : {report.ReportedRid}");

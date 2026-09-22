@@ -116,3 +116,14 @@ dotnet publish src/Cli -c Release -r linux-x64 -f net10.0 --self-contained true
 - `Core/Dto`
 - `Core/Domain`
 - `Core/Storage`
+
+### Додаткові завдання
+
+Для `PublishSingleFile=true` отримано збірку розміром 71 MB. У каталозі publish залишилися `Cli.exe` та PDB-файли.
+
+Для `PublishTrimmed=true` розмір збірки зменшився до 20 MB. Програма після публікації запускається правильно.
+
+Для перевірки multi-targeting додано умовну компіляцію:
+
+- net8.0 — `збірка під net8.0`
+- net10.0 — `збірка під net10.0`
