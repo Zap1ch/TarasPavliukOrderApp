@@ -127,3 +127,10 @@ dotnet publish src/Cli -c Release -r linux-x64 -f net10.0 --self-contained true
 
 - net8.0 — `збірка під net8.0`
 - net10.0 — `збірка під net10.0`
+
+### Перевірка multi-targeting
+
+```bash
+dotnet run --project src/Cli -f net8.0
+dotnet run --project src/Cli -f net10.0
+```
