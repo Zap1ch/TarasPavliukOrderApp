@@ -1,39 +1,51 @@
-﻿using Core;
-using System.Text.Json;
+﻿using Core.Dto;
+using Core.Import;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 
-EnvironmentReport report = EnvironmentInfo.Collect();
+bool jsonOutput = args.Contains("--json");
 
-if (args.Contains("--json"))
+string path = args.Length > 0 && args[0] != "--json"
+    ? args[0]
+    : Path.Combine("data", "sample.csv");
+
+if (!File.Exists(path))
 {
-    var info = new
-    {
-        OS = report.OsDescription,
-        Runtime = report.FrameworkDescription,
-        Build = EnvironmentInfo.BuildNote,
-        Architecture = report.ProcessArchitecture,
-        DetectedRid = report.DetectedRid,
-        ReportedRid = report.ReportedRid,
-        Directory = report.BaseDirectory
-    };
+    Console.WriteLine($"Файл не знайдено: {Path.GetFullPath(path)}");
+    return 1;
+}
 
+ImportResult<ProductDto> result = ProductCsvImporter.Load(path);
+
+if (jsonOutput)
+{
     var options = new JsonSerializerOptions
     {
+        WriteIndented = true,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
-    Console.WriteLine(JsonSerializer.Serialize(info, options));
+    Console.WriteLine(JsonSerializer.Serialize(result, options));
+    return 0;
 }
-else
-{
-    Console.WriteLine("TarasPavliukOrderApp – інформація про середовище");
-    Console.WriteLine(new string('-', 52));
 
-    Console.WriteLine($"ОС : {report.OsDescription}");
-    Console.WriteLine($"Runtime : {report.FrameworkDescription}");
-    Console.WriteLine($"Build : {EnvironmentInfo.BuildNote}");
-    Console.WriteLine($"Архітектура : {report.ProcessArchitecture}");
-    Console.WriteLine($"RID (визначено) : {report.DetectedRid}");
-    Console.WriteLine($"RID (від .NET) : {report.ReportedRid}");
-    Console.WriteLine($"Каталог : {report.BaseDirectory}");
+Console.WriteLine($"Завантажено записів: {result.Items.Count}");
+
+foreach (ProductDto product in result.Items.Take(5))
+{
+    Console.WriteLine(
+        $"{product.Id,-7} {product.Name,-30} {product.Price,10:F2}");
 }
+
+if (result.Errors.Count > 0)
+{
+    Console.WriteLine();
+    Console.WriteLine($"Пропущено рядків: {result.Errors.Count}");
+
+    foreach (string error in result.Errors)
+    {
+        Console.WriteLine($"! {error}");
+    }
+}
+
+return 0;
