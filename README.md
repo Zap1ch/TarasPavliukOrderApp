@@ -201,3 +201,68 @@ dotnet run --project src/Cli -f net10.0
     public const string BuildNote = "збірка під net8.0";
 #endif
 ```
+
+
+
+
+## Лабораторна робота №3
+
+### Основний запуск
+
+```bash
+dotnet run --project src/Cli -f net10.0
+```
+
+Імпорт даних із `data/sample.csv`. Програма виводить завантажені товари, помилкові рядки та статистику імпорту.
+
+### Основний запуск з JSON-виводом
+
+```bash
+dotnet run --project src/Cli -f net10.0 -- --json
+```
+
+Імпорт даних із `data/sample.csv` з виведенням результату у форматі JSON.
+
+### Запуск із вказаним CSV-файлом
+
+```bash
+dotnet run --project src/Cli -f net10.0 -- data/sample.csv
+```
+
+Шлях до CSV-файлу передається через аргумент командного рядка.
+
+### Додаткове завдання 1 — імпорт JSON
+
+```bash
+dotnet run --project src/Cli -f net10.0 -- data/sample.json
+```
+
+Імпорт товарів із `data/sample.json`. Імпортер автоматично вибирається за розширенням файлу.
+
+```bash
+dotnet run --project src/Cli -f net10.0 -- data/sample.json --json
+```
+
+Імпорт із `data/sample.json` та виведення результату у форматі JSON.
+
+### Додаткове завдання 2 — різнорідні записи
+
+```bash
+dotnet run --project src/Cli -f net10.0 -- --mixed
+```
+
+Імпорт із `data/sample-mixed.csv`, де записи з префіксом `P` є товарами, а записи з префіксом `W` — складами.
+
+```bash
+dotnet run --project src/Cli -f net10.0 -- --mixed --json
+```
+
+Імпорт різнорідних записів із виведенням результату у форматі JSON.
+
+### Додаткове завдання 3 — статистика імпорту
+
+Після звичайного та змішаного імпорту програма виводить статистику:
+
+```text
+Статистика: усього 13, прийнято 10, пропущено 3, помилок 23.1%
+```
