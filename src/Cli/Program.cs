@@ -3,6 +3,12 @@ using Core.Import;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
+if (args.Contains("--domain"))
+{
+    DomainDemo.Run();
+    return 0;
+}
+
 bool jsonOutput = args.Contains("--json");
 bool mixedMode = args.Contains("--mixed");
 
