@@ -78,6 +78,28 @@ public static class DomainDemo
         string broken = json.Replace("\"Quantity\": 2", "\"Quantity\": 0");
         Try("11. Пошкоджений JSON (кількість 0)",
             () => Order.FromDto(JsonSerializer.Deserialize<OrderDto>(broken, JsonOptions)!));
+
+        Console.WriteLine();
+        Console.WriteLine("Додаткове 1: ImportResult → сутності + помилки");
+
+        // Ніби дані, які прийшли з файлу: 2 нормальні рядки і 2 з порушеннями.
+        ImportResult<OrderLineDto> import = new ImportResult<OrderLineDto>(
+            new List<OrderLineDto>
+            {
+                new OrderLineDto("P-1", "Клавіатура", 1200m, 1),
+                new OrderLineDto("P-2", "Миша", -10m, 1),
+                new OrderLineDto("P-3", "Монітор", 5000m, 0),
+                new OrderLineDto("P-4", "Навушники", 900m, 2)
+            },
+            new List<string>());
+
+        ImportResult<OrderLine> result = OrderLineImport.ToEntities(import);
+
+        Console.WriteLine($"Прийнято рядків: {result.Items.Count}, з помилками: {result.Errors.Count}");
+        foreach (OrderLine l in result.Items)
+            Console.WriteLine($"  + {l.ProductId} {l.ProductName}: {l.Price} x {l.Quantity} = {l.Total}");
+        foreach (string error in result.Errors)
+            Console.WriteLine($"  ! {error}");
     }
 
     private static void Try(string title, Action action)
