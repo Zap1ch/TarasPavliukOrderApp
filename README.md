@@ -276,8 +276,8 @@ dotnet run --project src/Cli -f net10.0 -- --mixed --json
 Доменні сутності **Order** і **OrderLine** розташовані в `src/Core/Domain`. Замовлення містить колекцію рядків.
 
 - Конструктори приватні, об'єкти створюються лише через фабричні методи `Order.Create` і `OrderLine.Create`.
-- Стан замовлення змінюється лише через методи `AddLine` і `Confirm`.
-- Колекція рядків назовні доступна лише для читання (`IReadOnlyList` через `AsReadOnly()`), а `IsConfirmed` має приватний сеттер.
+- Стан замовлення змінюється лише через методи `AddLine`, `Confirm` і `Cancel`.
+- Колекція рядків назовні доступна лише для читання (`IReadOnlyList` через `AsReadOnly()`), а `Status` має приватний сеттер.
 - Усі перевірки виконуються до створення об'єкта або зміни стану, тому стан не псується при помилці.
 
 ### Зв'язок сутностей
@@ -293,9 +293,11 @@ dotnet run --project src/Cli -f net10.0 -- --mixed --json
 | ID і назва товару в рядку не порожні | ArgumentException | OrderLine.Create |
 | Ціна ≥ 0 | ArgumentOutOfRangeException | OrderLine.Create |
 | Кількість > 0 | ArgumentOutOfRangeException | OrderLine.Create |
-| Не додавати рядки до підтвердженого замовлення | InvalidOperationException | Order.AddLine |
+| Рядки додаються лише до чернетки (Draft) | InvalidOperationException | Order.AddLine |
 | Не підтверджувати порожнє замовлення | InvalidOperationException | Order.Confirm |
-| Не підтверджувати повторно | InvalidOperationException | Order.Confirm |
+| Лише допустимі переходи статусу (повторне підтвердження заборонене) | InvalidOperationException | Order.Confirm, Order.Cancel |
+| Статус у DTO має бути відомим | ArgumentException | Order.FromDto |
+| Не більше 5 непідтверджених замовлень у покупця | InvalidOperationException | OrderService.CreateOrder |
 
 Перелік інваріантів списком:
 
@@ -305,15 +307,19 @@ dotnet run --project src/Cli -f net10.0 -- --mixed --json
 - Назва товару в рядку не може бути порожньою (`OrderLine.Create`, `ArgumentException`).
 - Ціна не може бути від'ємною (`OrderLine.Create`, `ArgumentOutOfRangeException`).
 - Кількість у рядку має бути більшою за нуль (`OrderLine.Create`, `ArgumentOutOfRangeException`).
-- До підтвердженого замовлення не можна додавати рядки (`Order.AddLine`, `InvalidOperationException`).
+- Рядки можна додавати лише до чернетки, тобто не до підтвердженого чи скасованого замовлення (`Order.AddLine`, `InvalidOperationException`).
 - Порожнє замовлення не можна підтвердити (`Order.Confirm`, `InvalidOperationException`).
-- Замовлення не можна підтвердити повторно (`Order.Confirm`, `InvalidOperationException`).
+- Замовлення не можна підтвердити повторно, а скасоване не можна змінити (`Order.Confirm`, `Order.Cancel`, `InvalidOperationException`).
+- Статус у DTO має бути одним із `Draft`, `Confirmed`, `Cancelled` (`Order.FromDto`, `ArgumentException`).
+- Покупець може мати не більше 5 непідтверджених замовлень (`OrderService.CreateOrder`, `InvalidOperationException`).
+
+Останні три правила з'явилися в додаткових завданнях 2 і 3.
 
 ### DTO і сутності
 
 `OrderDto` та `OrderLineDto` (`src/Core/Dto`) — позиційні record, як `ProductDto` з лаби 3. Вони лише переносять дані й не гарантують їх коректності. Сутність захищає правила, тому створити некоректний об'єкт неможливо. Records лаби 3 залишились без змін.
 
-`Order.ToDto` перетворює сутність у DTO. `Order.FromDto` відновлює замовлення тільки через `Create`, `AddLine` і `Confirm` (підтвердження в кінці), а не через приватний конструктор, тому пошкоджені дані відхиляються тими самими інваріантами.
+`Order.ToDto` перетворює сутність у DTO. `Order.FromDto` відновлює замовлення тільки через `Create`, `AddLine`, `Confirm` і `Cancel` (статус відновлюється в кінці), а не через приватний конструктор, тому пошкоджені дані відхиляються тими самими інваріантами.
 
 ### Запуск
 
@@ -327,10 +333,45 @@ dotnet run --project src/Cli -f net10.0 -- --domain
 
 Сценарій 3: `order.ToDto()` серіалізується в JSON (як у режимі `--json` лаби 3), потім JSON → `OrderDto` → `Order.FromDto` відновлює таке саме замовлення. Той самий JSON із кількістю 0 у рядку відхиляється тим самим інваріантом, що й `AddLine`.
 
+Далі у виводі йдуть розділи трьох додаткових завдань (пункти 12–16).
+
 ### Самоперевірка
 
-- `order.IsConfirmed = true;` поза класом не компілюється (приватний сеттер).
+- `order.Status = ...;` і `order.IsConfirmed = true;` поза класом не компілюються (приватний сеттер / лише обчислення).
 - `order.Id = "...";` не компілюється (властивість лише для читання).
 - `new Order(...)` і `new OrderLine(...)` поза класом не компілюються (приватні конструктори).
 - `order.Lines.Add(...)` не компілюється (`IReadOnlyList` не має `Add`).
 - У `src/Core/Domain` немає викликів `Console.` і `File.`, а Core не посилається на Cli.
+
+### Додаткове завдання 1 — ImportResult → сутності
+
+`OrderLineImport.ToEntities` (`src/Core/Domain/OrderLineImport.cs`) бере `ImportResult<OrderLineDto>` (формат лаби 3) і пробує перетворити кожен DTO на `OrderLine` через `OrderLine.Create`. Рядки, що пройшли перевірки, потрапляють у список сутностей, а ті, що порушують інваріанти, у список помилок з номером запису. Помилки читання файлу зберігаються. Результат — `ImportResult<OrderLine>`, тобто та сама ідея «дані + помилки». Domain лише збирає тексти помилок, виводить їх Cli.
+
+У демо з 4 записів прийнято 2, відхилено 2 (від'ємна ціна, нульова кількість).
+
+### Додаткове завдання 2 — правило на дві сутності
+
+Правило: покупець може мати не більше 5 непідтверджених замовлень (чернеток). Його перевіряє `OrderService.CreateOrder` (`src/Core/Services/OrderService.cs`): спочатку `Order.Create` перевіряє аргументи, потім рахуються чернетки цього покупця, і якщо їх уже 5, виникає `InvalidOperationException`.
+
+Чому в сервісі, а не в `Order`: одне замовлення знає лише свої рядки і свій стан, а для перевірки потрібні всі замовлення покупця. Якби правило було в сутності, вона мала б зберігати чужі замовлення й залежати від того, де вони зберігаються. Сервіс отримує список ззовні (на тижні 5 його дасть сховище), а сутності відповідають лише за власні інваріанти.
+
+У демо: 5 чернеток створено, шосте відхилено (пункт 12), після підтвердження одного замовлення нове створюється, інших покупців правило не зачіпає.
+
+### Додаткове завдання 3 — статус замовлення
+
+`bool IsConfirmed` замінено на `enum OrderStatus { Draft, Confirmed, Cancelled }` (`src/Core/Domain/OrderStatus.cs`). `Status` має приватний сеттер і змінюється лише методами `Confirm()` і `Cancel()`. `IsConfirmed` залишено як обчислювану властивість (`Status == Confirmed`).
+
+Допустимі переходи описані через switch expression у `Order.CanTransition`:
+
+| Звідки | Куди | Дозволено |
+|---|---|---|
+| Draft | Confirmed | так (якщо є хоча б один рядок) |
+| Draft | Cancelled | так |
+| Confirmed | Cancelled | так |
+| Confirmed | Draft | ні |
+| Cancelled | будь-який | ні (кінцевий стан) |
+| будь-який | той самий | ні |
+
+`OrderDto` зберігає статус рядком. `Order.FromDto` розбирає його через switch expression: невідомий статус дає `ArgumentException`, а потрібний стан відновлюється викликами `Confirm()` / `Cancel()`. `OrderService` рахує лише чернетки, тому скасовані замовлення не займають ліміт.
+
+У демо: таблиця переходів, скасування чернетки й підтвердженого замовлення, 4 заборонені дії (пункти 13–16) і відновлення скасованого замовлення через `ToDto` → `FromDto`.
