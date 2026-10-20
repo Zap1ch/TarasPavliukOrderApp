@@ -14,7 +14,7 @@ public static class DomainDemo
 
     public static void Run()
     {
-        Console.WriteLine("=== Сценарій 1: коректне замовлення ===");
+        Console.WriteLine("Сценарій 1: коректне замовлення");
         var order = Order.Create("O-001", "C-100");
         order.AddLine("P-1", "Клавіатура", 1200m, 1);
         order.AddLine("P-2", "Миша", 450.50m, 2);
@@ -22,7 +22,7 @@ public static class DomainDemo
         Print(order);
 
         Console.WriteLine();
-        Console.WriteLine("=== Сценарій 2: порушення інваріантів ===");
+        Console.WriteLine("Сценарій 2: порушення інваріантів");
 
         Try("1. Порожній номер замовлення",
             () => Order.Create("", "C-100"));
@@ -55,15 +55,15 @@ public static class DomainDemo
             () => order.Confirm());
 
         Try("10. Пошкоджений DTO (підтверджене без рядків)",
-            () => Order.FromDto(new OrderDto("O-005", "C-100", true, new List<OrderLineDto>())));
+            () => Order.FromDto(new OrderDto("O-005", "C-100", "Confirmed", new List<OrderLineDto>())));
 
         Console.WriteLine();
-        Console.WriteLine("=== Стан після відмов (не змінився) ===");
+        Console.WriteLine("Стан після відмов (не змінився)");
         Print(order);
         Print(draft);
 
         Console.WriteLine();
-        Console.WriteLine("=== Сценарій 3: ToDto → JSON → FromDto ===");
+        Console.WriteLine("Сценарій 3: ToDto → JSON → FromDto");
 
         // Зберігаємо сутність у формат DTO і серіалізуємо в JSON, як у лабі 3.
         string json = JsonSerializer.Serialize(order.ToDto(), JsonOptions);
@@ -130,6 +130,48 @@ public static class DomainDemo
         // Інших покупців це правило не зачіпає.
         Order other = OrderService.CreateOrder("O-201", "C-300", orders);
         Console.WriteLine($"Покупець C-300: створено {other.Id}");
+
+        Console.WriteLine();
+        Console.WriteLine("Додаткове 3: статуси замовлення");
+
+        Console.WriteLine("Допустимі переходи (CanTransition):");
+        Console.WriteLine($"  Draft → Confirmed:     {Order.CanTransition(OrderStatus.Draft, OrderStatus.Confirmed)}");
+        Console.WriteLine($"  Draft → Cancelled:     {Order.CanTransition(OrderStatus.Draft, OrderStatus.Cancelled)}");
+        Console.WriteLine($"  Confirmed → Cancelled: {Order.CanTransition(OrderStatus.Confirmed, OrderStatus.Cancelled)}");
+        Console.WriteLine($"  Confirmed → Draft:     {Order.CanTransition(OrderStatus.Confirmed, OrderStatus.Draft)}");
+        Console.WriteLine($"  Cancelled → Draft:     {Order.CanTransition(OrderStatus.Cancelled, OrderStatus.Draft)}");
+        Console.WriteLine($"  Cancelled → Confirmed: {Order.CanTransition(OrderStatus.Cancelled, OrderStatus.Confirmed)}");
+
+        // Чернетку скасовуємо.
+        Order cancelled = Order.Create("O-301", "C-400");
+        cancelled.AddLine("P-4", "Навушники", 900m, 1);
+        cancelled.Cancel();
+        Print(cancelled);
+
+        // Підтверджене теж можна скасувати.
+        Order confirmedThenCancelled = Order.Create("O-302", "C-400");
+        confirmedThenCancelled.AddLine("P-1", "Клавіатура", 1200m, 1);
+        confirmedThenCancelled.Confirm();
+        confirmedThenCancelled.Cancel();
+        Print(confirmedThenCancelled);
+
+        Try("13. Підтвердження скасованого",
+            () => cancelled.Confirm());
+
+        Try("14. Повторне скасування",
+            () => cancelled.Cancel());
+
+        Try("15. Рядок у скасоване замовлення",
+            () => cancelled.AddLine("P-5", "Кабель", 100m, 1));
+
+        Try("16. DTO з невідомим статусом",
+            () => Order.FromDto(new OrderDto("O-303", "C-400", "Shipped",
+                new List<OrderLineDto> { new OrderLineDto("P-1", "Клавіатура", 1200m, 1) })));
+
+        // Статус зберігається і відновлюється через ToDto / FromDto.
+        Order restoredCancelled = Order.FromDto(cancelled.ToDto());
+        Console.Write("Відновлено з DTO: ");
+        Print(restoredCancelled);
     }
 
     private static void Try(string title, Action action)
@@ -148,7 +190,7 @@ public static class DomainDemo
     private static void Print(Order o)
     {
         Console.WriteLine($"Замовлення {o.Id}, покупець {o.CustomerId}, " +
-                          $"підтверджене: {o.IsConfirmed}, рядків: {o.Lines.Count}, сума: {o.Total}");
+                          $"статус: {o.Status}, рядків: {o.Lines.Count}, сума: {o.Total}");
         foreach (var l in o.Lines)
             Console.WriteLine($"  - {l.ProductId} {l.ProductName}: {l.Price} x {l.Quantity} = {l.Total}");
     }

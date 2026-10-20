@@ -8,13 +8,14 @@ public static class OrderService
 {
     public const int MaxDraftOrders = 5;
 
-    // Скільки непідтверджених замовлень має покупець.
+    // Скільки непідтверджених замовлень (чернеток) має покупець.
+    // Скасовані не рахуються.
     public static int CountDrafts(string customerId, IReadOnlyList<Order> orders)
     {
         int count = 0;
         foreach (Order order in orders)
         {
-            if (order.CustomerId == customerId && !order.IsConfirmed)
+            if (order.CustomerId == customerId && order.Status == OrderStatus.Draft)
                 count++;
         }
         return count;
