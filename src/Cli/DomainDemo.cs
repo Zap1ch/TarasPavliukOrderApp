@@ -2,6 +2,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Core.Domain;
 using Core.Dto;
+using Core.Services;
 
 public static class DomainDemo
 {
@@ -100,6 +101,35 @@ public static class DomainDemo
             Console.WriteLine($"  + {l.ProductId} {l.ProductName}: {l.Price} x {l.Quantity} = {l.Total}");
         foreach (string error in result.Errors)
             Console.WriteLine($"  ! {error}");
+
+        Console.WriteLine();
+        Console.WriteLine("Додаткове 2: не більше 5 непідтверджених замовлень у покупця");
+
+        // Список усіх замовлень (на тижні 5 його замінить сховище).
+        List<Order> orders = new List<Order>();
+
+        // Створюємо 5 непідтверджених замовлень для покупця C-200.
+        for (int i = 1; i <= 5; i++)
+        {
+            Order newOrder = OrderService.CreateOrder($"O-10{i}", "C-200", orders);
+            orders.Add(newOrder);
+        }
+        Console.WriteLine($"У покупця C-200 непідтверджених замовлень: {OrderService.CountDrafts("C-200", orders)}");
+
+        Try("12. Шосте непідтверджене замовлення",
+            () => OrderService.CreateOrder("O-106", "C-200", orders));
+
+        // Підтверджуємо одне замовлення, і місце звільняється.
+        orders[0].AddLine("P-1", "Клавіатура", 1200m, 1);
+        orders[0].Confirm();
+        Order sixth = OrderService.CreateOrder("O-106", "C-200", orders);
+        orders.Add(sixth);
+        Console.WriteLine($"Після підтвердження {orders[0].Id} створено {sixth.Id}, " +
+                          $"непідтверджених: {OrderService.CountDrafts("C-200", orders)}");
+
+        // Інших покупців це правило не зачіпає.
+        Order other = OrderService.CreateOrder("O-201", "C-300", orders);
+        Console.WriteLine($"Покупець C-300: створено {other.Id}");
     }
 
     private static void Try(string title, Action action)
