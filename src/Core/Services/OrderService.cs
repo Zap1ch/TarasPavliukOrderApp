@@ -46,6 +46,20 @@ public sealed class OrderService(IOrderStore store)
     public int CountDrafts(string customerId) =>
         _store.List().Count(o => o.CustomerId == customerId && o.Status == OrderStatus.Draft);
 
+    // Додаткове 2: пошук за будь-якою умовою. Умову передає той, хто викликає.
+    public IReadOnlyList<Order> Search(Func<Order, bool> filter)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+
+        var result = new List<Order>();
+        foreach (var order in _store.List())
+        {
+            if (filter(order))
+                result.Add(order);
+        }
+        return result;
+    }
+
     // Відсутнє замовлення тут — помилка, а не нормальний результат.
     private Order GetOrThrow(string id) =>
         _store.GetById(id) ?? throw new InvalidOperationException($"Немає замовлення з id={id}.");

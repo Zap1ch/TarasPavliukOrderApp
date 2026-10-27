@@ -1,5 +1,4 @@
-﻿using Core;
-using Core.Abstractions;
+﻿using Core.Abstractions;
 using Core.Domain;
 using Core.Dto;
 using Core.Import;
@@ -18,19 +17,23 @@ if (args.Contains("--domain"))
 // Лаба 5: сервіс + два сховища.
 if (args.Contains("--store") || args.Contains("--file"))
 {
-    // Composition root: лише тут створюються конкретні класи.
-    bool useFile = args.Contains("--file");
-    string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "orders.json");
-
-    IOrderStore store = useFile
-        ? new FileOrderStore(dataPath)
-        : new InMemoryOrderStore(SampleData.Orders());
-
-    var service = new OrderService(store);
+    // Composition root. Додаткове 3: вибір сховища винесено у фабрику.
+    IOrderStore store = StoreFactory.Create(args);
 
     Console.WriteLine($"Сховище: {store.GetType().Name}");
-    if (useFile)
-        Console.WriteLine($"Файл: {dataPath}");
+    if (store is FileOrderStore)
+        Console.WriteLine($"Файл: {StoreFactory.DataPath}");
+
+    // Додаткове 1: декоратор поверх будь-якого сховища.
+    CachingOrderStore? cache = null;
+    if (args.Contains("--cache"))
+    {
+        cache = new CachingOrderStore(store);
+        store = cache;
+        Console.WriteLine("Обгорнуто в CachingOrderStore");
+    }
+
+    var service = new OrderService(store);
 
     // Додати і змінити: нове замовлення, два рядки, підтвердження.
     var created = service.CreateOrder("C-108");
@@ -52,6 +55,14 @@ if (args.Contains("--store") || args.Contains("--file"))
         Console.WriteLine($"Замовлення {created.Id} не знайдено");
     else
         Console.WriteLine($"Знайдено {found.Id}: покупець {found.CustomerId}, статус {found.Status}, сума {found.Total:F2}");
+
+    // Додаткове 2: пошук за умовою (Func<Order, bool>).
+    if (args.Contains("--search"))
+    {
+        PrintOrders("Чернетки", service.Search(o => o.Status == OrderStatus.Draft));
+        PrintOrders("Замовлення покупця C-100", service.Search(o => o.CustomerId == "C-100"));
+        PrintOrders("Сума понад 10000", service.Search(o => o.Total > 10000m));
+    }
 
     // Сценарій відмови: Core кидає виняток, Cli перехоплює і пише зрозумілий текст.
     Console.WriteLine();
@@ -77,7 +88,23 @@ if (args.Contains("--store") || args.Contains("--file"))
         Console.WriteLine($"  Не вдалося підтвердити замовлення: {ex.Message}");
     }
 
+    // Додаткове 1: статистика кешу.
+    if (cache is not null)
+    {
+        Console.WriteLine();
+        Console.WriteLine($"Кеш: відповідей з кешу {cache.Hits}, звернень до сховища {cache.Misses}");
+    }
+
     return 0;
+
+    // Друкує заголовок і знайдені замовлення.
+    static void PrintOrders(string title, IReadOnlyList<Order> orders)
+    {
+        Console.WriteLine();
+        Console.WriteLine($"{title} ({orders.Count}):");
+        foreach (var o in orders)
+            Console.WriteLine($"  {o.Id,-8} {o.CustomerId,-6} {o.Status,-10} сума: {o.Total,9:F2}");
+    }
 }
 
 // Лаба 3: імпорт CSV / JSON.
