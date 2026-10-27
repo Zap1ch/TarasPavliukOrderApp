@@ -389,8 +389,8 @@ dotnet run --project src/Cli -f net10.0 -- --domain
 - Інтерфейс сховища: `IOrderStore` (`src/Core/Abstractions/IOrderStore.cs`) — методи `List`, `GetById`, `Add`, `Update`, `Remove`.
 - Реалізації:
   - `InMemoryOrderStore` (`src/Core/Storage/InMemoryOrderStore.cs`) — `Dictionary` у пам'яті, початкові дані з `SampleData`, після виходу дані зникають;
-  - `FileOrderStore` (`src/Core/Storage/FileOrderStore.cs`) — JSON-файл `data/orders.json` у папці запуску програми, кеш у пам'яті, читання при першому зверненні, запис після кожної зміни. На диск пишуться `OrderDto` через `ToDto` / `FromDto`.
-- Сервіс: `OrderService` (`src/Core/Services/OrderService.cs`) — отримує `IOrderStore` через конструктор; операції `CreateOrder`, `AddLine`, `Confirm`, `All`, `Find`; правило «не більше 5 чернеток у покупця».
+  - `FileOrderStore` (`src/Core/Storage/FileOrderStore.cs`) — JSON-файл `data/orders.json` у папці запуску програми (`src/Cli/bin/Debug/net10.0/data/orders.json`), кеш у пам'яті, читання при першому зверненні, запис після кожної зміни. На диск пишуться `OrderDto` через `ToDto` / `FromDto`.
+- Сервіс: `OrderService` (`src/Core/Services/OrderService.cs`) — отримує `IOrderStore` через конструктор; операції `CreateOrder`, `AddLine`, `Confirm`, `All`, `Find`, `Search`; правило «не більше 5 чернеток у покупця».
 - Тестові дані: `SampleData.Orders()` — 16 замовлень.
 
 Схема залежностей:
@@ -399,7 +399,9 @@ dotnet run --project src/Cli -f net10.0 -- --domain
 Cli (Program.cs) → OrderService → IOrderStore → InMemoryOrderStore | FileOrderStore
 ```
 
-### Composition root (Program.cs)
+### Composition root
+
+Основне завдання — вибір сховища тернарним оператором у `Program.cs`:
 
 ```csharp
 bool useFile = args.Contains("--file");
@@ -412,7 +414,14 @@ IOrderStore store = useFile
 var service = new OrderService(store);
 ```
 
-Конкретні класи сховищ створюються лише тут. `Microsoft.Extensions.DependencyInjection` не підключено.
+Після додаткового завдання 3 цей вибір винесено у фабрику `StoreFactory` (теж у Cli), а в `Program.cs` залишився один рядок:
+
+```csharp
+IOrderStore store = StoreFactory.Create(args);
+var service = new OrderService(store);
+```
+
+Конкретні класи сховищ створюються лише в Cli (`Program.cs` / `StoreFactory.cs`), Core про них у сервісі нічого не знає. `Microsoft.Extensions.DependencyInjection` не підключено.
 
 ### Запуск
 
@@ -423,9 +432,30 @@ dotnet run --project src/Cli -f net10.0 -- --file    # файлове схови
 
 Сценарій: створення замовлення, додавання двох рядків, підтвердження, список усіх замовлень, пошук за id, сценарій відмови (дубль id і неіснуюче замовлення) з повідомленням у `try/catch`.
 
+- `--store`: щоразу 17 замовлень (16 тестових + 1 нове), після виходу нове замовлення зникає;
+- `--file`: кожен запуск додає до файлу одне замовлення, дані зберігаються між запусками.
+
 ### Самоперевірка
 
 - пошук `FileOrderStore` у `src/Core` — лише у файлі реалізації; `Console.` у Core — нічого;
-- два запуски з `--file` дають 1, потім 2 замовлення (накопичення);
+- два запуски з `--file` дають накопичення, а не обнулення файлу;
 - з закоментованим `FileOrderStore` проєкт Core компілюється;
 - параметр конструктора `OrderService` — інтерфейс `IOrderStore`.
+
+### Додаткові завдання
+
+**1. Декоратор `CachingOrderStore`** (`src/Core/Storage/CachingOrderStore.cs`) — реалізує `IOrderStore` і приймає інший `IOrderStore` у конструкторі. Кешує результат `List()`, після `Add` / `Update` / `Remove` кеш скидається. Працює з обома сховищами; `OrderService` не змінювався.
+
+```bash
+dotnet run --project src/Cli -f net10.0 -- --store --cache
+```
+
+У кінці виводиться статистика: `Кеш: відповідей з кешу 1, звернень до сховища 2`.
+
+**2. Пошук `OrderService.Search(Func<Order, bool> filter)`** — повертає замовлення, для яких виконується передана умова. У демо три пошуки: чернетки, замовлення покупця C-100, сума понад 10000.
+
+```bash
+dotnet run --project src/Cli -f net10.0 -- --store --search
+```
+
+**3. Фабрика `StoreFactory.Create(args)`** (`src/Cli/StoreFactory.cs`) — вибір сховища винесено з `Program.cs` у фабрику в Cli: з `--file` повертає `FileOrderStore`, інакше `InMemoryOrderStore`.
