@@ -1,14 +1,86 @@
-﻿using Core.Dto;
+﻿using Core;
+using Core.Abstractions;
+using Core.Domain;
+using Core.Dto;
 using Core.Import;
+using Core.Services;
+using Core.Storage;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
+// Лаба 4: демо доменної моделі (окреме порожнє сховище в пам'яті).
 if (args.Contains("--domain"))
 {
-    DomainDemo.Run();
+    DomainDemo.Run(new OrderService(new InMemoryOrderStore()));
     return 0;
 }
 
+// Лаба 5: сервіс + два сховища.
+if (args.Contains("--store") || args.Contains("--file"))
+{
+    // Composition root: лише тут створюються конкретні класи.
+    bool useFile = args.Contains("--file");
+    string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "orders.json");
+
+    IOrderStore store = useFile
+        ? new FileOrderStore(dataPath)
+        : new InMemoryOrderStore(SampleData.Orders());
+
+    var service = new OrderService(store);
+
+    Console.WriteLine($"Сховище: {store.GetType().Name}");
+    if (useFile)
+        Console.WriteLine($"Файл: {dataPath}");
+
+    // Додати і змінити: нове замовлення, два рядки, підтвердження.
+    var created = service.CreateOrder("C-108");
+    service.AddLine(created.Id, "P-5", "Кабель HDMI", 250m, 2);
+    service.AddLine(created.Id, "P-3", "Монітор", 5000m, 1);
+    service.Confirm(created.Id);
+    Console.WriteLine($"Створено і підтверджено замовлення {created.Id}");
+
+    // Показати список.
+    Console.WriteLine();
+    Console.WriteLine($"Усі замовлення ({service.All().Count}):");
+    foreach (var o in service.All())
+        Console.WriteLine($"  {o.Id,-8} {o.CustomerId,-6} {o.Status,-10} рядків: {o.Lines.Count}  сума: {o.Total,9:F2}");
+
+    // Знайти за id.
+    Console.WriteLine();
+    var found = service.Find(created.Id);
+    if (found is null)
+        Console.WriteLine($"Замовлення {created.Id} не знайдено");
+    else
+        Console.WriteLine($"Знайдено {found.Id}: покупець {found.CustomerId}, статус {found.Status}, сума {found.Total:F2}");
+
+    // Сценарій відмови: Core кидає виняток, Cli перехоплює і пише зрозумілий текст.
+    Console.WriteLine();
+    Console.WriteLine("Сценарій відмови:");
+
+    try
+    {
+        // Дубль: замовлення з таким номером уже є.
+        store.Add(Order.Create(created.Id, "C-108"));
+    }
+    catch (InvalidOperationException ex)
+    {
+        Console.WriteLine($"  Не вдалося додати замовлення: {ex.Message}");
+    }
+
+    try
+    {
+        // Неіснуючий номер.
+        service.Confirm("O-999");
+    }
+    catch (InvalidOperationException ex)
+    {
+        Console.WriteLine($"  Не вдалося підтвердити замовлення: {ex.Message}");
+    }
+
+    return 0;
+}
+
+// Лаба 3: імпорт CSV / JSON.
 bool jsonOutput = args.Contains("--json");
 bool mixedMode = args.Contains("--mixed");
 

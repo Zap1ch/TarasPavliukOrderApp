@@ -375,3 +375,57 @@ dotnet run --project src/Cli -f net10.0 -- --domain
 `OrderDto` зберігає статус рядком. `Order.FromDto` розбирає його через switch expression: невідомий статус дає `ArgumentException`, а потрібний стан відновлюється викликами `Confirm()` / `Cancel()`. `OrderService` рахує лише чернетки, тому скасовані замовлення не займають ліміт.
 
 У демо: таблиця переходів, скасування чернетки й підтвердженого замовлення, 4 заборонені дії (пункти 13–16) і відновлення скасованого замовлення через `ToDto` → `FromDto`.
+
+
+
+
+
+
+
+## Лабораторна робота 5
+
+### Сервісний шар: інтерфейс, два сховища, ручний DI
+
+- Інтерфейс сховища: `IOrderStore` (`src/Core/Abstractions/IOrderStore.cs`) — методи `List`, `GetById`, `Add`, `Update`, `Remove`.
+- Реалізації:
+  - `InMemoryOrderStore` (`src/Core/Storage/InMemoryOrderStore.cs`) — `Dictionary` у пам'яті, початкові дані з `SampleData`, після виходу дані зникають;
+  - `FileOrderStore` (`src/Core/Storage/FileOrderStore.cs`) — JSON-файл `data/orders.json` у папці запуску програми, кеш у пам'яті, читання при першому зверненні, запис після кожної зміни. На диск пишуться `OrderDto` через `ToDto` / `FromDto`.
+- Сервіс: `OrderService` (`src/Core/Services/OrderService.cs`) — отримує `IOrderStore` через конструктор; операції `CreateOrder`, `AddLine`, `Confirm`, `All`, `Find`; правило «не більше 5 чернеток у покупця».
+- Тестові дані: `SampleData.Orders()` — 16 замовлень.
+
+Схема залежностей:
+
+```
+Cli (Program.cs) → OrderService → IOrderStore → InMemoryOrderStore | FileOrderStore
+```
+
+### Composition root (Program.cs)
+
+```csharp
+bool useFile = args.Contains("--file");
+string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "orders.json");
+
+IOrderStore store = useFile
+    ? new FileOrderStore(dataPath)
+    : new InMemoryOrderStore(SampleData.Orders());
+
+var service = new OrderService(store);
+```
+
+Конкретні класи сховищ створюються лише тут. `Microsoft.Extensions.DependencyInjection` не підключено.
+
+### Запуск
+
+```bash
+dotnet run --project src/Cli -f net10.0 -- --store   # сховище в пам'яті
+dotnet run --project src/Cli -f net10.0 -- --file    # файлове сховище
+```
+
+Сценарій: створення замовлення, додавання двох рядків, підтвердження, список усіх замовлень, пошук за id, сценарій відмови (дубль id і неіснуюче замовлення) з повідомленням у `try/catch`.
+
+### Самоперевірка
+
+- пошук `FileOrderStore` у `src/Core` — лише у файлі реалізації; `Console.` у Core — нічого;
+- два запуски з `--file` дають 1, потім 2 замовлення (накопичення);
+- з закоментованим `FileOrderStore` проєкт Core компілюється;
+- параметр конструктора `OrderService` — інтерфейс `IOrderStore`.

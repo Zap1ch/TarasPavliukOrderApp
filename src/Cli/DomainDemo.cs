@@ -12,7 +12,8 @@ public static class DomainDemo
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
-    public static void Run()
+    // Сервіс приходить з Program.cs (там створюється сховище).
+    public static void Run(OrderService service)
     {
         Console.WriteLine("Сценарій 1: коректне замовлення");
         var order = Order.Create("O-001", "C-100");
@@ -105,30 +106,25 @@ public static class DomainDemo
         Console.WriteLine();
         Console.WriteLine("Додаткове 2: не більше 5 непідтверджених замовлень у покупця");
 
-        // Список усіх замовлень (на тижні 5 його замінить сховище).
-        List<Order> orders = new List<Order>();
-
-        // Створюємо 5 непідтверджених замовлень для покупця C-200.
+        // З лаби 5 список замовлень замінило сховище, сервіс працює через нього.
+        List<Order> created = new List<Order>();
         for (int i = 1; i <= 5; i++)
-        {
-            Order newOrder = OrderService.CreateOrder($"O-10{i}", "C-200", orders);
-            orders.Add(newOrder);
-        }
-        Console.WriteLine($"У покупця C-200 непідтверджених замовлень: {OrderService.CountDrafts("C-200", orders)}");
+            created.Add(service.CreateOrder("C-200"));
+
+        Console.WriteLine($"У покупця C-200 непідтверджених замовлень: {service.CountDrafts("C-200")}");
 
         Try("12. Шосте непідтверджене замовлення",
-            () => OrderService.CreateOrder("O-106", "C-200", orders));
+            () => service.CreateOrder("C-200"));
 
         // Підтверджуємо одне замовлення, і місце звільняється.
-        orders[0].AddLine("P-1", "Клавіатура", 1200m, 1);
-        orders[0].Confirm();
-        Order sixth = OrderService.CreateOrder("O-106", "C-200", orders);
-        orders.Add(sixth);
-        Console.WriteLine($"Після підтвердження {orders[0].Id} створено {sixth.Id}, " +
-                          $"непідтверджених: {OrderService.CountDrafts("C-200", orders)}");
+        service.AddLine(created[0].Id, "P-1", "Клавіатура", 1200m, 1);
+        service.Confirm(created[0].Id);
+        Order sixth = service.CreateOrder("C-200");
+        Console.WriteLine($"Після підтвердження {created[0].Id} створено {sixth.Id}, " +
+                          $"непідтверджених: {service.CountDrafts("C-200")}");
 
         // Інших покупців це правило не зачіпає.
-        Order other = OrderService.CreateOrder("O-201", "C-300", orders);
+        Order other = service.CreateOrder("C-300");
         Console.WriteLine($"Покупець C-300: створено {other.Id}");
 
         Console.WriteLine();

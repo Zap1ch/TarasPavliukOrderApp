@@ -1,39 +1,52 @@
+using Core.Abstractions;
 using Core.Domain;
 
 namespace Core.Services;
 
-// Додаткове 2: правило на ДВІ сутності (покупець і його замовлення).
-// Одне замовлення не знає про інші замовлення покупця, тому це правило перевіряє сервіс, а не клас Order.
-public static class OrderService
+// Бізнес-операції із замовленнями. Знає лише інтерфейс сховища, а не пам'ять чи файл.
+public sealed class OrderService(IOrderStore store)
 {
     public const int MaxDraftOrders = 5;
 
-    // Скільки непідтверджених замовлень (чернеток) має покупець.
-    // Скасовані не рахуються.
-    public static int CountDrafts(string customerId, IReadOnlyList<Order> orders)
-    {
-        int count = 0;
-        foreach (Order order in orders)
-        {
-            if (order.CustomerId == customerId && order.Status == OrderStatus.Draft)
-                count++;
-        }
-        return count;
-    }
+    private readonly IOrderStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
-    // Створює нове замовлення, якщо в покупця менше 5 непідтверджених.
-    public static Order CreateOrder(string id, string customerId, IReadOnlyList<Order> orders)
+    public Order CreateOrder(string customerId)
     {
-        // 1. Фабрика перевіряє самі аргументи (порожній номер, порожній покупець).
-        Order newOrder = Order.Create(id, customerId);
+        // Короткий унікальний номер: перші 8 символів Guid.
+        var order = Order.Create(Guid.NewGuid().ToString("N")[..8], customerId);
 
-        // 2. Потім правило на кілька сутностей.
-        int drafts = CountDrafts(newOrder.CustomerId, orders);
+        // Правило на кілька замовлень (з лаби 4): не більше 5 чернеток у покупця.
+        int drafts = CountDrafts(order.CustomerId);
         if (drafts >= MaxDraftOrders)
             throw new InvalidOperationException(
-                $"Покупець {newOrder.CustomerId} вже має {drafts} непідтверджених замовлень, " +
-                $"нове замовлення {newOrder.Id} створити не можна");
+                $"Покупець {order.CustomerId} вже має {drafts} непідтверджених замовлень, нове створити не можна.");
 
-        return newOrder;
+        _store.Add(order);
+        return order;
     }
+
+    public void AddLine(string orderId, string productId, string productName, decimal price, int quantity)
+    {
+        var order = GetOrThrow(orderId);
+        order.AddLine(productId, productName, price, quantity); // інваріанти перевіряє Order
+        _store.Update(order);
+    }
+
+    public void Confirm(string orderId)
+    {
+        var order = GetOrThrow(orderId);
+        order.Confirm();
+        _store.Update(order);
+    }
+
+    public IReadOnlyList<Order> All() => _store.List();
+
+    public Order? Find(string id) => _store.GetById(id);
+
+    public int CountDrafts(string customerId) =>
+        _store.List().Count(o => o.CustomerId == customerId && o.Status == OrderStatus.Draft);
+
+    // Відсутнє замовлення тут — помилка, а не нормальний результат.
+    private Order GetOrThrow(string id) =>
+        _store.GetById(id) ?? throw new InvalidOperationException($"Немає замовлення з id={id}.");
 }
