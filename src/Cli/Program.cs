@@ -221,10 +221,15 @@ if (mixedMode)
     return 0;
 }
 
+// Лаба 6, додаткове 2: з --report імпортер повідомляє про кожен пропущений рядок через Action<string>.
+Action<string>? onSkipped = null;
+if (args.Contains("--report"))
+    onSkipped = message => Console.WriteLine($"[пропущено] {message}");
+
 ImportResult<ProductDto> result =
     Path.GetExtension(path).ToLowerInvariant() switch
     {
-        ".csv" => ProductCsvImporter.Load(path),
+        ".csv" => ProductCsvImporter.Load(path, onSkipped),
         ".json" => ProductJsonImporter.Load(path),
 
         _ => new ImportResult<ProductDto>(
