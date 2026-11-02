@@ -14,6 +14,13 @@ if (args.Contains("--domain"))
     return 0;
 }
 
+// Лаба 6: події сервісу. Сховище вибирає фабрика (--file або пам'ять).
+if (args.Contains("--events"))
+{
+    EventsDemo.Run(new OrderService(StoreFactory.Create(args)));
+    return 0;
+}
+
 // Лаба 5: сервіс + два сховища.
 if (args.Contains("--store") || args.Contains("--file"))
 {
