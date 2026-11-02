@@ -459,3 +459,61 @@ dotnet run --project src/Cli -f net10.0 -- --store --search
 ```
 
 **3. Фабрика `StoreFactory.Create(args)`** (`src/Cli/StoreFactory.cs`) — вибір сховища винесено з `Program.cs` у фабрику в Cli: з `--file` повертає `FileOrderStore`, інакше `InMemoryOrderStore`.
+
+
+
+
+## Лабораторна робота 6
+
+### Доменні події, делегати Action/Func, лямбди
+
+`OrderService` повідомляє про зміни замовлень через подію `Changed`. Core лише піднімає подію, а що з нею робити (консоль, файл), вирішують підписники в Cli.
+
+**Нові / змінені файли:**
+- `src/Core/Events/OrderChangeKind.cs` — вид зміни: `OrderCreated`, `LineAdded`, `OrderConfirmed`;
+- `src/Core/Events/OrderChangedEventArgs.cs` — дані події: `OrderId`, `Kind`, `LinesCount`, `Total`, `At`;
+- `src/Core/Services/OrderService.cs` — `event EventHandler<OrderChangedEventArgs>? Changed` і метод `OnChanged`;
+- `src/Cli/EventsDemo.cs` — підписники, відписка, сценарій;
+- `src/Cli/Program.cs` — режими `--events`, `--sinks`, `--report`.
+
+**Правила:**
+- подія піднімається через `Changed?.Invoke(...)` в кінці `CreateOrder`, `AddLine`, `Confirm` — лише після успішної зміни; якщо інваріант кинув виняток, події немає;
+- у Core немає `Console` і запису в лог-файл.
+
+**Підписники (Cli):**
+1. локальний метод `OnOrderChanged` — рядок у консоль і в `logs/app.log` (шлях через `Path.Combine(AppContext.BaseDirectory, "logs", "app.log")`, каталог створюється кодом);
+2. лямбда `(_, _) => changes++` — лічильник подій (замикання).
+
+Після `service.Changed -= OnOrderChanged;` операції виконуються, але рядків у консолі й лозі немає, а лічильник рахує далі.
+
+### Запуск
+
+```bash
+dotnet run --project src/Cli -f net10.0 -- --events
+```
+Сховище в пам'яті. Створення замовлення, 2 рядки, підтвердження → 4 рядки подій у консолі й `app.log`; сценарій відмови (від'ємна кількість, `O-999`) — помилка є, події немає; відписка `-=` → нове замовлення без рядка в лозі; пошук через `Func`: `Search(o => o.Total < 1000m)`.
+
+```bash
+dotnet run --project src/Cli -f net10.0 -- --events --file
+```
+Те саме з файловим сховищем.
+
+Лог: `src/Cli/bin/Debug/net10.0/logs/app.log`
+```
+23:57:22 OrderCreated   89f0e233 рядків: 0 → сума 0,00
+23:57:22 LineAdded      89f0e233 рядків: 1 → сума 500,00
+23:57:22 LineAdded      89f0e233 рядків: 2 → сума 5500,00
+23:57:22 OrderConfirmed 89f0e233 рядків: 2 → сума 5500,00
+```
+
+### Додаткові завдання
+
+```bash
+dotnet run --project src/Cli -f net10.0 -- --sinks
+```
+Сповіщення через інтерфейс `INotificationSink` (Core) з реалізаціями `ConsoleSink` і `FileSink` (Cli, `logs/sinks.log`), які передаються в `OrderService` через конструктор. На відміну від події, одержувачі видно в конструкторі, але змінити їх після створення сервісу не можна.
+
+```bash
+dotnet run --project src/Cli -f net10.0 -- --report
+```
+`ProductCsvImporter.Load(path, Action<string>? onSkipped)`: кожен пропущений рядок `data/sample.csv` одразу виводиться як `[пропущено] ...`. Без `--report` імпорт працює як у лабі 3.
