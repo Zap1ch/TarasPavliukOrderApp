@@ -21,6 +21,24 @@ if (args.Contains("--events"))
     return 0;
 }
 
+// Лаба 6, додаткове 1: сповіщення через інтерфейс INotificationSink замість події.
+if (args.Contains("--sinks"))
+{
+    string sinkLog = Path.Combine(AppContext.BaseDirectory, "logs", "sinks.log");
+
+    // Одержувачів передаємо в сервіс через конструктор (ручний DI, як у лабі 5).
+    var sinks = new List<INotificationSink> { new ConsoleSink(), new FileSink(sinkLog) };
+    var sinkService = new OrderService(StoreFactory.Create(args), sinks);
+
+    Console.WriteLine($"Лог: {sinkLog}");
+    Console.WriteLine();
+
+    var order = sinkService.CreateOrder("C-110");
+    sinkService.AddLine(order.Id, "P-2", "Миша", 450m, 2);
+    sinkService.Confirm(order.Id);
+    return 0;
+}
+
 // Лаба 5: сервіс + два сховища.
 if (args.Contains("--store") || args.Contains("--file"))
 {

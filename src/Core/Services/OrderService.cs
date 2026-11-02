@@ -5,18 +5,29 @@ using Core.Events;
 namespace Core.Services;
 
 // Бізнес-операції із замовленнями. Знає лише інтерфейс сховища, а не пам'ять чи файл.
-public sealed class OrderService(IOrderStore store)
+// sinks — необов'язкові одержувачі сповіщень (додаткове 1).
+public sealed class OrderService(IOrderStore store, IReadOnlyList<INotificationSink>? sinks = null)
 {
     public const int MaxDraftOrders = 5;
 
     private readonly IOrderStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
+    // Якщо одержувачів не передали — порожній список.
+    private readonly IReadOnlyList<INotificationSink> _sinks = sinks ?? new List<INotificationSink>();
+
     // Подія: сервіс повідомляє про зміну, а що з цим робити, вирішує той, хто підписався.
     public event EventHandler<OrderChangedEventArgs>? Changed;
 
-    // Єдине місце, де піднімається подія. ?. — якщо підписників немає, нічого не відбувається.
-    private void OnChanged(Order order, OrderChangeKind kind) =>
-        Changed?.Invoke(this, new OrderChangedEventArgs(order.Id, kind, order.Lines.Count, order.Total));
+    // Єдине місце сповіщення: спершу подія, потім одержувачі з конструктора.
+    private void OnChanged(Order order, OrderChangeKind kind)
+    {
+        var args = new OrderChangedEventArgs(order.Id, kind, order.Lines.Count, order.Total);
+
+        Changed?.Invoke(this, args);
+
+        foreach (var sink in _sinks)
+            sink.Notify(args);
+    }
 
     public Order CreateOrder(string customerId)
     {
