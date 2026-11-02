@@ -74,5 +74,13 @@ public static class EventsDemo
         Console.WriteLine($"Створено замовлення {second.Id} без повідомлення в лозі");
         Console.WriteLine($"Подій отримано: {changes}");
         Console.WriteLine($"Замовлень у сховищі: {service.All().Count}");
+
+        // Крок 7. Func замість події: тут потрібен результат (список), а не сповіщення.
+        var small = service.Search(o => o.Total < 1000m);
+
+        Console.WriteLine();
+        Console.WriteLine($"Замовлення із сумою менше 1000 ({small.Count}):");
+        foreach (var o in small)
+            Console.WriteLine($"  {o.Id,-8} {o.CustomerId,-6} {o.Status,-10} сума: {o.Total,9:F2}");
     }
 }
