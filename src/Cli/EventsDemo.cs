@@ -27,10 +27,39 @@ public static class EventsDemo
         int changes = 0;
         service.Changed += (_, _) => changes++;
 
-        // Крок 5. Сценарій: створити замовлення, додати 2 рядки, підтвердити.
+        // Крок 5. Сценарій: створити замовлення, додати 2 рядки.
         var created = service.CreateOrder("C-108");
         service.AddLine(created.Id, "P-5", "Кабель HDMI", 250m, 2);
         service.AddLine(created.Id, "P-3", "Монітор", 5000m, 1);
+
+        // Крок 6. Відмова: виняток є, події немає (OnOrderChanged ще підписаний).
+        Console.WriteLine();
+        Console.WriteLine($"Подій до відмов: {changes}");
+
+        try
+        {
+            // Від'ємна кількість — інваріант OrderLine.
+            service.AddLine(created.Id, "P-1", "Клавіатура", 1200m, -1);
+        }
+        catch (ArgumentException ex)
+        {
+            Console.WriteLine($"  Помилка: {ex.Message}");
+        }
+
+        try
+        {
+            // Неіснуюче замовлення.
+            service.Confirm("O-999");
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.WriteLine($"  Помилка: {ex.Message}");
+        }
+
+        Console.WriteLine($"Подій після відмов: {changes}");
+        Console.WriteLine();
+
+        // Продовження сценарію: підтвердження.
         service.Confirm(created.Id);
 
         Console.WriteLine();
