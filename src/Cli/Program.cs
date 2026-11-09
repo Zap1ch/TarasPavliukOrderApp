@@ -39,6 +39,13 @@ if (args.Contains("--sinks"))
     return 0;
 }
 
+// Лаба 7: звіти LINQ. Команди починаються з "report-" (не плутати з --report з лаби 6).
+if (args.Any(a => a.StartsWith("report-")))
+{
+    ReportsDemo.Run(new OrderService(StoreFactory.Create(args)), args);
+    return 0;
+}
+
 // Лаба 5: сервіс + два сховища.
 if (args.Contains("--store") || args.Contains("--file"))
 {
