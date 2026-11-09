@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Core;
 using Core.Domain;
 using Core.Reports;
@@ -16,6 +17,7 @@ public static class ReportsDemo
 
         switch (command)
         {
+            // Основне завдання
             case "report-top":
                 Console.WriteLine("Топ-5 клієнтів за сумою замовлень:");
                 PrintGroups(ReportService.TopCustomers(items, 5));
@@ -37,11 +39,17 @@ public static class ReportsDemo
                                   $"середній чек: {t.Average:F2}, максимальне: {t.Max:F2}");
                 break;
 
+            case "report-deferred":
+                DeferredDemo(service);
+                break;
+
+            // Додаткове 1: GroupJoin
             case "report-customers":
                 Console.WriteLine("Клієнти із замовленнями (GroupJoin):");
                 PrintCustomers(ReportService.CustomersWithOrders(SampleData.Customers(), items));
                 break;
 
+            // Додаткове 2: метод-розширення TopBy
             case "report-top-orders":
                 Console.WriteLine("Топ-5 найдорожчих замовлень (TopBy):");
                 PrintOrders(ReportService.TopOrders(items, 5));
@@ -52,18 +60,20 @@ public static class ReportsDemo
                 PrintCustomers(ReportService.TopNamedCustomers(SampleData.Customers(), items, 5));
                 break;
 
+            // Додаткове 3: синтаксис запитів
             case "report-groups-query":
                 Console.WriteLine("Замовлення за статусом (синтаксис запитів):");
                 PrintGroups(ReportService.ByStatusQuery(items));
                 break;
 
-            case "report-deferred":
-                DeferredDemo(service);
+            // Додаткове 4: Stopwatch на 100 000 записів
+            case "report-bench":
+                Benchmark();
                 break;
 
             default:
-                Console.WriteLine("Команди: report-top | report-expensive | report-groups | report-groups-query | report-sum | " +
-                                  "report-customers | report-top-orders | report-top-named | report-deferred");
+                Console.WriteLine("Команди: report-top | report-expensive | report-groups | report-sum | report-deferred | " +
+                                  "report-customers | report-top-orders | report-top-named | report-groups-query | report-bench");
                 break;
         }
     }
@@ -118,5 +128,30 @@ public static class ReportsDemo
         Console.WriteLine($"Джерело очищено, у ньому: {source.Count}");
         Console.WriteLine($"Запит тепер дає: {query.Count()}");
         Console.WriteLine($"У знімку лишилось: {snapshot.Count}");   // не змінюється
+    }
+
+    // Додаткове 4: вимір часу звіту на 100 000 замовлень, з ToList у середині і без нього.
+    private static void Benchmark()
+    {
+        const int runs = 10;
+        var data = OrderGenerator.Generate(100_000);
+        Console.WriteLine($"Згенеровано замовлень: {data.Count}");
+
+        // Прогрів: перший виклик повільніший через JIT-компіляцію.
+        var a = ReportService.ExpensiveOrders(data, 100000m);
+        var b = ReportService.ExpensiveOrdersMiddleToList(data, 100000m);
+        Console.WriteLine($"Знайдено дорожчих за 100000: {a.Count} і {b.Count} (результати однакові)");
+
+        var sw = Stopwatch.StartNew();
+        for (int i = 0; i < runs; i++)
+            ReportService.ExpensiveOrders(data, 100000m);
+        sw.Stop();
+        Console.WriteLine($"Без ToList у середині:  {sw.Elapsed.TotalMilliseconds / runs,8:F2} мс");
+
+        sw.Restart();
+        for (int i = 0; i < runs; i++)
+            ReportService.ExpensiveOrdersMiddleToList(data, 100000m);
+        sw.Stop();
+        Console.WriteLine($"З ToList у середині:    {sw.Elapsed.TotalMilliseconds / runs,8:F2} мс");
     }
 }

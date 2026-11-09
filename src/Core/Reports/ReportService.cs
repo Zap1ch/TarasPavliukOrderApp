@@ -68,4 +68,12 @@ public static class ReportService
          orderby g.Count() descending, g.Key.ToString()
          select new GroupSummary(g.Key.ToString(), g.Count(), g.Sum(x => x.Total)))
         .ToList();
-}    
+
+    // 9) Додаткове 4: той самий звіт, що ExpensiveOrders, але з ToList у середині — для порівняння швидкості.
+    public static IReadOnlyList<OrderReportLine> ExpensiveOrdersMiddleToList(IEnumerable<Order> source, decimal threshold) =>
+        source.Select(o => new OrderReportLine(o.Id, o.CustomerId, o.Status.ToString(), o.Lines.Count, o.Total))
+              .ToList()                                   // проміжний список з УСІХ замовлень
+              .Where(l => l.Total > threshold)
+              .OrderByDescending(l => l.Total).ThenBy(l => l.OrderId, StringComparer.Ordinal)
+              .ToList();
+}
