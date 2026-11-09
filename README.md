@@ -517,3 +517,70 @@ dotnet run --project src/Cli -f net10.0 -- --sinks
 dotnet run --project src/Cli -f net10.0 -- --report
 ```
 `ProductCsvImporter.Load(path, Action<string>? onSkipped)`: кожен пропущений рядок `data/sample.csv` одразу виводиться як `[пропущено] ...`. Без `--report` імпорт працює як у лабі 3.
+
+
+
+
+
+## Лабораторна робота 7
+
+### Звіти через LINQ: фільтри, проєкції, групування, топ-N, агрегати
+
+Усі запити лежать у Core, у статичному класі `ReportService` (`src/Core/Reports/ReportService.cs`). Кожен звіт приймає `IEnumerable<Order>`, а не сховище, і повертає готовий результат (`IReadOnlyList` DTO або кортеж), а не сутності `Order`. Cli (`src/Cli/ReportsDemo.cs`) лише вибирає звіт за командою і друкує результат; у `Program.cs` немає жодного `Where` чи `GroupBy`.
+
+**Нові / змінені файли:**
+- `src/Core/Reports/OrderReportLine.cs` — DTO рядка про замовлення: `OrderId`, `CustomerId`, `Status`, `LinesCount`, `Total`;
+- `src/Core/Reports/GroupSummary.cs` — DTO групи: `Key`, `Count`, `TotalSum`;
+- `src/Core/Reports/ReportService.cs` — усі звіти;
+- `src/Core/SampleData.cs` — розширено до 20 замовлень;
+- `src/Cli/ReportsDemo.cs` — команди звітів і вивід;
+- `src/Cli/Program.cs` — режим для команд, що починаються з `report-`.
+
+**Звіти основного завдання:**
+- `ExpensiveOrders` — замовлення дорожчі за N: `Where`, `OrderByDescending`, `ThenBy`, `Select`;
+- `TopCustomers` — топ-5 клієнтів за сумою: `GroupBy`, `Select`, `OrderByDescending`, `ThenBy`, `Take`;
+- `ByStatus` — кількість і сума замовлень за статусом: `GroupBy`, `Select`, `OrderByDescending`, `ThenBy`;
+- `Totals` — кількість, загальна сума, середній чек, максимальне замовлення: `Count`, `Sum`, `Average`, `Max`; для порожнього джерела повертає нулі.
+
+У топ-N після основного ключа стоїть `ThenBy` за кодом, тому порядок однаковий за кожного запуску.
+
+### Запуск
+
+```bash
+dotnet run --project src/Cli -f net10.0 -- report-top          # топ-5 клієнтів за сумою
+dotnet run --project src/Cli -f net10.0 -- report-expensive    # замовлення дорожчі за 10000
+dotnet run --project src/Cli -f net10.0 -- report-groups       # групування за статусом
+dotnet run --project src/Cli -f net10.0 -- report-sum          # підсумки
+dotnet run --project src/Cli -f net10.0 -- report-deferred     # демо відкладеного виконання
+```
+
+Додатково: `--file` бере дані з файлового сховища, `--empty` передає звітам порожній список (перевірка, що нічого не падає).
+
+```
+Топ-5 клієнтів за сумою замовлень:
+  C-101      замовлень:   3   сума:   34650,00
+  C-105      замовлень:   2   сума:   30100,00
+  C-108      замовлень:   1   сума:   28900,00
+  C-104      замовлень:   2   сума:   13500,00
+  C-100      замовлень:   3   сума:   10100,00
+Замовлень: 20, загальна сума: 147500,00, середній чек: 7375,00, максимальне: 28900,00
+```
+
+### Відкладене виконання
+
+Запит `source.Where(o => o.Total > 10000m)` у моєму коді в момент оголошення не виконується: програма лише запам'ятовує умову. Виконується він під час кожного виклику `Count()` або `ToList()`, і щоразу заново перебирає джерело. Тому перший `Count()` дав 4, а після додавання в джерело ще одного замовлення на 28000 той самий запит дав 5. Після `ToList()` результат зафіксовано в окремому списку: коли джерело очистили, запит дав 0, а знімок і далі містить 5 замовлень.
+
+### Додаткові завдання
+
+```bash
+dotnet run --project src/Cli -f net10.0 -- report-customers      # 1. GroupJoin клієнтів із замовленнями
+dotnet run --project src/Cli -f net10.0 -- report-top-orders     # 2. топ-5 замовлень через TopBy
+dotnet run --project src/Cli -f net10.0 -- report-top-named      # 2. топ-5 клієнтів з іменами через TopBy
+dotnet run --project src/Cli -f net10.0 -- report-groups-query   # 3. групування в синтаксисі запитів
+dotnet run --project src/Cli -f net10.0 -c Release -- report-bench   # 4. Stopwatch на 100 000 замовлень
+```
+
+1. **GroupJoin.** `CustomersWithOrders` з'єднує клієнтів (`SampleData.Customers()`, `CustomerDto`) із замовленнями за кодом клієнта і будує DTO `CustomerReport`. На відміну від `Join`, клієнт без замовлень (C-109) теж потрапляє у звіт із нулями.
+2. **Метод-розширення.** `TopBy<T>(this IEnumerable<T>, Func<T, decimal>, Func<T, string>, int)` у `EnumerableExtensions.cs` — топ-N з другим ключем; використано у звітах `TopOrders` і `TopNamedCustomers`.
+3. **Синтаксис запитів.** `ByStatusQuery` записано через `from ... group ... by ... into ... orderby ... select` і дає той самий результат, що `ByStatus`. Синтаксис запитів читається як речення і наочніший для групування; методний синтаксис коротший для простих ланцюжків і дозволяє вільно використовувати `Take`, `ToList` чи `TopBy`, тому в основних звітах залишено його.
+4. **Stopwatch.** На 100 000 згенерованих замовлень (`OrderGenerator`) варіант без `ToList` у середині ланцюжка виконувався в середньому за ~19 мс, а з `ToList` у середині (усі замовлення спершу перетворюються на DTO) — за 31–49 мс. Фільтр варто ставити якомога раніше, а `ToList` — у кінці.
