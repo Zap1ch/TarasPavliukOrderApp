@@ -2,7 +2,7 @@ using Core.Domain;
 
 namespace Core;
 
-// Тестові замовлення для демо (і для LINQ на тижні 7).
+// Тестові замовлення для демо і звітів (20 шт., три статуси, кілька дорогих).
 public static class SampleData
 {
     public static List<Order> Orders()
@@ -93,6 +93,28 @@ public static class SampleData
         o16.AddLine("P-10", "Килимок для миші", 200m, 3);
         o16.Confirm();
         orders.Add(o16);
+
+        // Лаба 7: ще 4 замовлення для звітів.
+        var o17 = Order.Create("O-017", "C-101");
+        o17.AddLine("P-3", "Монітор", 5000m, 1);
+        o17.AddLine("P-2", "Миша", 450m, 1);
+        o17.Confirm();
+        orders.Add(o17);
+
+        var o18 = Order.Create("O-018", "C-107");
+        o18.AddLine("P-9", "Принтер", 6500m, 1);
+        orders.Add(o18); // чернетка
+
+        var o19 = Order.Create("O-019", "C-108");
+        o19.AddLine("P-8", "Ноутбук", 28000m, 1);
+        o19.AddLine("P-4", "Навушники", 900m, 1);
+        o19.Confirm();
+        orders.Add(o19); // та сама сума, що в O-012 — перевірка ThenBy
+
+        var o20 = Order.Create("O-020", "C-102");
+        o20.AddLine("P-6", "Веб-камера", 1500m, 2);
+        o20.Cancel();
+        orders.Add(o20);
 
         return orders;
     }
