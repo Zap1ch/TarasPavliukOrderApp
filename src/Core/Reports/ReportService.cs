@@ -48,4 +48,16 @@ public static class ReportService
                                 c.Id, c.Name, customerOrders.Count(), customerOrders.Sum(o => o.Total)))
                  .OrderByDescending(r => r.TotalSum).ThenBy(r => r.CustomerId, StringComparer.Ordinal)
                  .ToList();
+
+    // 6) Додаткове 2: топ-N найдорожчих замовлень через власний метод TopBy.
+    public static IReadOnlyList<OrderReportLine> TopOrders(IEnumerable<Order> source, int n) =>
+        source.TopBy(o => o.Total, o => o.Id, n)
+              .Select(o => new OrderReportLine(o.Id, o.CustomerId, o.Status.ToString(), o.Lines.Count, o.Total))
+              .ToList();
+
+    // 7) Додаткове 2: топ-N клієнтів з іменами — результат GroupJoin, обрізаний через TopBy.
+    public static IReadOnlyList<CustomerReport> TopNamedCustomers(
+        IEnumerable<CustomerDto> customers, IEnumerable<Order> orders, int n) =>
+        CustomersWithOrders(customers, orders)
+            .TopBy(r => r.TotalSum, r => r.CustomerId, n);
 }

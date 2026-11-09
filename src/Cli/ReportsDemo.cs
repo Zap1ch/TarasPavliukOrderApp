@@ -46,8 +46,19 @@ public static class ReportsDemo
                 DeferredDemo(service);
                 break;
 
+            case "report-top-orders":
+                Console.WriteLine("Топ-5 найдорожчих замовлень (TopBy):");
+                PrintOrders(ReportService.TopOrders(items, 5));
+                break;
+
+            case "report-top-named":
+                Console.WriteLine("Топ-5 клієнтів з іменами (GroupJoin + TopBy):");
+                PrintCustomers(ReportService.TopNamedCustomers(SampleData.Customers(), items, 5));
+                break;
+
             default:
-                Console.WriteLine("Команди: report-top | report-expensive | report-groups | report-sum | report-customers | report-deferred");
+                 Console.WriteLine("Команди: report-top | report-expensive | report-groups | report-sum | " +
+                    "report-customers | report-top-orders | report-top-named | report-deferred");
                 break;
         }
     }
