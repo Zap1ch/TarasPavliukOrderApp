@@ -42,10 +42,6 @@ public static class ReportsDemo
                 PrintCustomers(ReportService.CustomersWithOrders(SampleData.Customers(), items));
                 break;
 
-            case "report-deferred":
-                DeferredDemo(service);
-                break;
-
             case "report-top-orders":
                 Console.WriteLine("Топ-5 найдорожчих замовлень (TopBy):");
                 PrintOrders(ReportService.TopOrders(items, 5));
@@ -56,9 +52,18 @@ public static class ReportsDemo
                 PrintCustomers(ReportService.TopNamedCustomers(SampleData.Customers(), items, 5));
                 break;
 
+            case "report-groups-query":
+                Console.WriteLine("Замовлення за статусом (синтаксис запитів):");
+                PrintGroups(ReportService.ByStatusQuery(items));
+                break;
+
+            case "report-deferred":
+                DeferredDemo(service);
+                break;
+
             default:
-                 Console.WriteLine("Команди: report-top | report-expensive | report-groups | report-sum | " +
-                    "report-customers | report-top-orders | report-top-named | report-deferred");
+                Console.WriteLine("Команди: report-top | report-expensive | report-groups | report-groups-query | report-sum | " +
+                                  "report-customers | report-top-orders | report-top-named | report-deferred");
                 break;
         }
     }
@@ -90,7 +95,7 @@ public static class ReportsDemo
             Console.WriteLine("  (порожньо)");
 
         foreach (var r in lines)
-            Console.WriteLine($"  {r.CustomerId,-6} {r.Name,-16} замовлень: {r.OrdersCount,2}   сума: {r.TotalSum,10:F2}");
+            Console.WriteLine($"  {r.CustomerId,-6} {r.Name,-24} замовлень: {r.OrdersCount,2}   сума: {r.TotalSum,10:F2}");
     }
 
     // Крок 3. Відкладене виконання: запит виконується не тоді, коли написаний, а коли його перебирають.

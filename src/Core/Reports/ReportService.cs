@@ -60,4 +60,12 @@ public static class ReportService
         IEnumerable<CustomerDto> customers, IEnumerable<Order> orders, int n) =>
         CustomersWithOrders(customers, orders)
             .TopBy(r => r.TotalSum, r => r.CustomerId, n);
-}
+
+    // 8) Додаткове 3: те саме групування за статусом, але в синтаксисі запитів.
+    public static IReadOnlyList<GroupSummary> ByStatusQuery(IEnumerable<Order> source) =>
+        (from o in source
+         group o by o.Status into g
+         orderby g.Count() descending, g.Key.ToString()
+         select new GroupSummary(g.Key.ToString(), g.Count(), g.Sum(x => x.Total)))
+        .ToList();
+}    
