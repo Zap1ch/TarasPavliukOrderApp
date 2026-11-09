@@ -1,4 +1,5 @@
 using Core.Domain;
+using Core.Dto;
 
 namespace Core;
 
@@ -117,5 +118,23 @@ public static class SampleData
         orders.Add(o20);
 
         return orders;
+    }
+
+    // Додаткове 1 (лаба 7): клієнти для GroupJoin. C-109 навмисно без замовлень.
+    public static List<CustomerDto> Customers()
+    {
+        return new List<CustomerDto>
+        {
+            new CustomerDto("C-100", "Тарас Павлюк"),
+            new CustomerDto("C-101", "Артур Студинський"),
+            new CustomerDto("C-102", "Денис Дубик"),
+            new CustomerDto("C-103", "Едуард Боднар"),
+            new CustomerDto("C-104", "Тарас Демчишин"),
+            new CustomerDto("C-105", "Олександр Срогий"),
+            new CustomerDto("C-106", "Артем Федонюк"),
+            new CustomerDto("C-107", "Олександр Сорочинський"),
+            new CustomerDto("C-108", "Захар Беркута"),
+            new CustomerDto("C-109", "Ростислав Потоцький")
+        };
     }
 }

@@ -1,4 +1,5 @@
 using Core.Domain;
+using Core.Dto;
 
 namespace Core.Reports;
 
@@ -36,4 +37,15 @@ public static class ReportService
             ? (0, 0m, 0m, 0m)         // порожньо: Average і Max кинули б виняток
             : (list.Count, list.Sum(o => o.Total), list.Average(o => o.Total), list.Max(o => o.Total));
     }
+
+    // 5) Додаткове 1: GroupJoin клієнтів із замовленнями. Клієнт без замовлень теж потрапляє у звіт.
+    public static IReadOnlyList<CustomerReport> CustomersWithOrders(
+        IEnumerable<CustomerDto> customers, IEnumerable<Order> orders) =>
+        customers.GroupJoin(orders,
+                            c => c.Id,                 // ключ клієнта
+                            o => o.CustomerId,         // ключ замовлення
+                            (c, customerOrders) => new CustomerReport(
+                                c.Id, c.Name, customerOrders.Count(), customerOrders.Sum(o => o.Total)))
+                 .OrderByDescending(r => r.TotalSum).ThenBy(r => r.CustomerId, StringComparer.Ordinal)
+                 .ToList();
 }

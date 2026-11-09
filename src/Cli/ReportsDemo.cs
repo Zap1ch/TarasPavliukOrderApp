@@ -1,3 +1,4 @@
+using Core;
 using Core.Domain;
 using Core.Reports;
 using Core.Services;
@@ -36,12 +37,17 @@ public static class ReportsDemo
                                   $"середній чек: {t.Average:F2}, максимальне: {t.Max:F2}");
                 break;
 
+            case "report-customers":
+                Console.WriteLine("Клієнти із замовленнями (GroupJoin):");
+                PrintCustomers(ReportService.CustomersWithOrders(SampleData.Customers(), items));
+                break;
+
             case "report-deferred":
                 DeferredDemo(service);
                 break;
 
             default:
-                Console.WriteLine("Команди: report-top | report-expensive | report-groups | report-sum | report-deferred");
+                Console.WriteLine("Команди: report-top | report-expensive | report-groups | report-sum | report-customers | report-deferred");
                 break;
         }
     }
@@ -64,6 +70,16 @@ public static class ReportsDemo
 
         foreach (var l in lines)
             Console.WriteLine($"  {l.OrderId,-8} {l.CustomerId,-6} {l.Status,-10} рядків: {l.LinesCount}   сума: {l.Total,10:F2}");
+    }
+
+    // Друкує зведення по клієнтах.
+    private static void PrintCustomers(IReadOnlyList<CustomerReport> lines)
+    {
+        if (lines.Count == 0)
+            Console.WriteLine("  (порожньо)");
+
+        foreach (var r in lines)
+            Console.WriteLine($"  {r.CustomerId,-6} {r.Name,-16} замовлень: {r.OrdersCount,2}   сума: {r.TotalSum,10:F2}");
     }
 
     // Крок 3. Відкладене виконання: запит виконується не тоді, коли написаний, а коли його перебирають.
