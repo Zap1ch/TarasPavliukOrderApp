@@ -22,7 +22,7 @@ public static class ImportDemo
         int events = 0;
         service.Changed += (_, _) => events++;
 
-        // "Пульт" скасування: Ctrl+C або тайм-аут.
+        // Пульт користувача: Ctrl+C.
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) =>
         {
@@ -30,37 +30,47 @@ public static class ImportDemo
             cts.Cancel();      // попросити імпорт зупинитися
         };
 
+        // Додаткове 2: тайм-аут — окремий пульт, зв'язується з Ctrl+C всередині Timeouts.RunAsync.
+        TimeSpan? timeout = null;
         string? timeoutText = ValueAfter(args, "--timeout");
         if (timeoutText is not null)
         {
-            int ms = int.Parse(timeoutText);
-            cts.CancelAfter(TimeSpan.FromMilliseconds(ms));
-            Console.WriteLine($"Тайм-аут: {ms} мс");
+            timeout = TimeSpan.FromMilliseconds(int.Parse(timeoutText));
+            Console.WriteLine($"Тайм-аут: {timeoutText} мс");
         }
 
         Console.WriteLine($"Файл: {path}");
         Console.WriteLine($"У сховищі до імпорту: {service.All().Count}");
         Console.WriteLine("Імпорт... (Ctrl+C — скасувати)");
 
+        // Додаткове 1: --stream — потоковий імпорт (await foreach), інакше весь файл одразу.
+        bool stream = args.Contains("--stream");
+        Console.WriteLine(stream ? "Режим: потоковий (IAsyncEnumerable)" : "Режим: увесь файл (LoadAsync)");
+
+        // Сам імпорт як дія з токеном — так її можна загорнути в тайм-аут.
+        Func<CancellationToken, Task<int>> import = ct => stream
+            ? service.ImportStreamAsync(new JsonOrderImporter(), path, ct)
+            : service.ImportAsync(new JsonOrderImporter(), path, ct);
+
         var sw = Stopwatch.StartNew();
         int code = 0;
 
-        // Порядок важливий: скасування — першим.
         try
         {
-            // Додаткове 1: --stream — потоковий імпорт (await foreach), інакше весь файл одразу.
-            bool stream = args.Contains("--stream");
-            Console.WriteLine(stream ? "Режим: потоковий (IAsyncEnumerable)" : "Режим: увесь файл (LoadAsync)");
-
-            int added = stream
-                ? await service.ImportStreamAsync(new JsonOrderImporter(), path, cts.Token)
-                : await service.ImportAsync(new JsonOrderImporter(), path, cts.Token);
+            int added = timeout is null
+                ? await import(cts.Token)
+                : await Timeouts.RunAsync(import, timeout.Value, cts.Token);
 
             Console.WriteLine($"Імпортовано записів: {added} (за {sw.ElapsedMilliseconds} мс)");
         }
+        catch (TimeoutException ex)
+        {
+            Console.WriteLine($"Імпорт скасовано: тайм-аут. {ex.Message} (через {sw.ElapsedMilliseconds} мс)");
+            code = 2;
+        }
         catch (OperationCanceledException)
         {
-            Console.WriteLine($"Імпорт скасовано. (через {sw.ElapsedMilliseconds} мс)");
+            Console.WriteLine($"Імпорт скасовано користувачем. (через {sw.ElapsedMilliseconds} мс)");
             code = 2;
         }
         catch (DomainException ex)
