@@ -39,6 +39,12 @@ if (args.Contains("--sinks"))
     return 0;
 }
 
+// Лаба 8: асинхронний імпорт зі скасуванням (Ctrl+C або --timeout). await робить програму асинхронною.
+if (args.Contains("--import") || args.Contains("--gen-big"))
+{
+    return await ImportDemo.RunAsync(args);
+}
+
 // Лаба 7: звіти LINQ. Команди починаються з "report-" (не плутати з --report з лаби 6).
 if (args.Any(a => a.StartsWith("report-")))
 {

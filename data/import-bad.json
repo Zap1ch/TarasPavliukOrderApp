@@ -1,0 +1,26 @@
+[
+  {
+    "Id": "I-011",
+    "CustomerId": "C-101",
+    "Status": "Draft",
+    "Lines": [
+      { "ProductId": "P-1", "ProductName": "Клавіатура", "Price": 1200, "Quantity": 1 }
+    ]
+  },
+  {
+    "Id": "I-012",
+    "CustomerId": "C-102",
+    "Status": "Draft",
+    "Lines": [
+      { "ProductId": "P-2", "ProductName": "Миша", "Price": 450, "Quantity": 0 }
+    ]
+  },
+  {
+    "Id": "I-013",
+    "CustomerId": "C-103",
+    "Status": "Draft",
+    "Lines": [
+      { "ProductId": "P-3", "ProductName": "Монітор", "Price": 5000, "Quantity": 1 }
+    ]
+  }
+]
