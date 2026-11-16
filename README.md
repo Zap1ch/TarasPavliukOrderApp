@@ -584,3 +584,51 @@ dotnet run --project src/Cli -f net10.0 -c Release -- report-bench   # 4. Stopwa
 2. **Метод-розширення.** `TopBy<T>(this IEnumerable<T>, Func<T, decimal>, Func<T, string>, int)` у `EnumerableExtensions.cs` — топ-N з другим ключем; використано у звітах `TopOrders` і `TopNamedCustomers`.
 3. **Синтаксис запитів.** `ByStatusQuery` записано через `from ... group ... by ... into ... orderby ... select` і дає той самий результат, що `ByStatus`. Синтаксис запитів читається як речення і наочніший для групування; методний синтаксис коротший для простих ланцюжків і дозволяє вільно використовувати `Take`, `ToList` чи `TopBy`, тому в основних звітах залишено його.
 4. **Stopwatch.** На 100 000 згенерованих замовлень (`OrderGenerator`) варіант без `ToList` у середині ланцюжка виконувався в середньому за ~19 мс, а з `ToList` у середині (усі замовлення спершу перетворюються на DTO) — за 31–49 мс. Фільтр варто ставити якомога раніше, а `ToList` — у кінці.
+
+
+
+
+## Лабораторна робота 8 — async/await, скасування, доменні винятки, unit-тести
+
+### Що додано
+- `src/Core/DomainException.cs` — виняток для порушень бізнес-правил: рядок у не-чернетку, підтвердження порожнього, повторне підтвердження, шоста чернетка в покупця. Погані аргументи (порожня назва, кількість 0, від'ємна ціна) лишаються `ArgumentException`.
+- `IOrderImporter` / `JsonOrderImporter` — асинхронне читання замовлень з JSON (`FileStream` з `useAsync: true`, `DeserializeAsync`), токен перевіряється на початку і на кожному записі. Поганий запис → `DomainException` з номером запису, початкова помилка зберігається в `InnerException`.
+- `OrderService.ImportAsync(importer, path, ct)` — додає імпортовані замовлення в сховище, піднімає `Changed` на кожне додане. Імпорт ідемпотентний: замовлення з наявним `Id` пропускається.
+- `src/Cli/ImportDemo.cs` — запуск імпорту з Ctrl+C і тайм-аутом; скасування, тайм-аут, погані дані, відсутній файл і пошкоджений JSON обробляються окремими `catch`.
+- `tests/Core.Tests` — xUnit-тести, посилаються лише на Core.
+
+### Тести
+```bash
+dotnet test
+dotnet test --logger "console;verbosity=normal"   # з назвою кожного тесту
+dotnet test --collect:"XPlat Code Coverage"       # з покриттям (TestResults/*/coverage.cobertura.xml)
+```
+20 тестів: правила замовлення та сума (`OrderServiceTests`), звіти (`ReportServiceTests`), імпорт і скасування (`ImportTests`), тайм-аут (`TimeoutTests`), прогрес (`ProgressTests`). Сховище — `InMemoryOrderStore`, диск не використовується, крім тимчасових файлів, які видаляються у `finally`.
+
+### Імпорт
+```bash
+dotnet run --project src/Cli -- --import                               # data/import-orders.json → +3 замовлення
+dotnet run --project src/Cli -- --import --file                        # у файлове сховище; повторний запуск додасть 0
+dotnet run --project src/Cli -- --import data/import-bad.json          # Дані відхилено: Запис 2: ...
+dotnet run --project src/Cli -- --import data/import-broken.json       # пошкоджений JSON
+dotnet run --project src/Cli -- --import data/nope.json                # файл не знайдено
+```
+
+### Перевірка скасування
+```bash
+dotnet run --project src/Cli -- --gen-big                                    # data/import-big.json, 200 000 замовлень (~73 МБ, не в git)
+dotnet run --project src/Cli -- --import data/import-big.json --timeout 300  # Імпорт скасовано: тайм-аут
+```
+Ctrl+C: запустити імпорт великого файлу без `--timeout` (або з `--progress`) і натиснути Ctrl+C — «Імпорт скасовано користувачем.», а не стектрейс. Запускати в PowerShell: Git Bash часто не передає Ctrl+C у .NET-програму.
+
+Коди виходу: `0` — успіх, `1` — помилка даних чи файлу, `2` — скасовано.
+
+### Додаткові завдання
+1. **Потоковий імпорт** (`--stream`): `StreamAsync` повертає `IAsyncEnumerable<Order>` через `DeserializeAsyncEnumerable`, токен з `[EnumeratorCancellation]`; сервіс перебирає через `await foreach`. Замовлення додаються одразу, без читання всього файлу в пам'ять, але імпорт не атомарний (з `import-bad.json` встигає додатися перший запис).
+2. **Зв'язані токени**: `Timeouts.RunAsync` поєднує токен користувача і тайм-аут через `CreateLinkedTokenSource`; якщо спрацював тайм-аут — `TimeoutException`, якщо Ctrl+C — `OperationCanceledException`. Тест доводить, що спрацював саме тайм-аут.
+3. **Прогрес** (`--progress`, вмикає потоковий режим): `IProgress<int>` отримує відсоток прочитаних байтів, `ConsoleProgress` у Cli малює смужку кожні 10%.
+   ```bash
+   dotnet run --project src/Cli -- --import data/import-big.json --progress
+   dotnet run --project src/Cli -- --import data/import-big.json --progress --timeout 1000
+   ```
+4. **Покриття**: `dotnet test --collect:"XPlat Code Coverage"` — близько 32% рядків Core. Код лаби 8 (імпорт, тайм-аут, `DomainException`, сервіс) покритий на 70–100%; не покриті імпортери лаби 3, `FileOrderStore`/`CachingOrderStore` і демо-дані.
