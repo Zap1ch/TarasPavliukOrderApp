@@ -82,12 +82,14 @@ public sealed class OrderService(IOrderStore store, IReadOnlyList<INotificationS
 
     // Додаткове 1: потоковий імпорт — кожне замовлення додається, щойно прочитане.
     // Не атомарний: при помилці на N-му записі попередні вже в сховищі (повторний запуск безпечний).
-    public async Task<int> ImportStreamAsync(IOrderImporter importer, string path, CancellationToken ct = default)
+    // Додаткове 3: progress передається імпортеру — відсоток прочитаного файлу.
+    public async Task<int> ImportStreamAsync(IOrderImporter importer, string path,
+                                             CancellationToken ct = default, IProgress<int>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(importer);
 
         var added = 0;
-        await foreach (var order in importer.StreamAsync(path, ct))
+        await foreach (var order in importer.StreamAsync(path, ct, progress))
         {
             if (TryAddImported(order))
                 added++;

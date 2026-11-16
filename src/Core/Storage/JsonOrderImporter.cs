@@ -32,8 +32,10 @@ public sealed class JsonOrderImporter : IOrderImporter
     }
 
     // Додаткове 1: потоковий імпорт. [EnumeratorCancellation] — токен з WithCancellation(ct) потрапить сюди.
+    // Додаткове 3: progress отримує відсоток прочитаних байтів файлу.
     public async IAsyncEnumerable<Order> StreamAsync(string path,
-        [EnumeratorCancellation] CancellationToken ct = default)
+        [EnumeratorCancellation] CancellationToken ct = default,
+        IProgress<int>? progress = null)
     {
         ct.ThrowIfCancellationRequested();
 
@@ -42,12 +44,29 @@ public sealed class JsonOrderImporter : IOrderImporter
 
         // Розбирає JSON-масив по одному елементу, не читаючи весь файл у пам'ять.
         var number = 0;
+        var lastPercent = -1;
         await foreach (var dto in JsonSerializer.DeserializeAsyncEnumerable<OrderDto>(stream, cancellationToken: ct))
         {
             ct.ThrowIfCancellationRequested();
             number++;
+
+            // Звітуємо лише коли відсоток змінився (не 200 000 разів).
+            if (progress is not null && stream.Length > 0)
+            {
+                int percent = (int)(stream.Position * 100 / stream.Length);
+                if (percent > lastPercent)
+                {
+                    lastPercent = percent;
+                    progress.Report(percent);
+                }
+            }
+
             yield return ToOrder(dto, number);   // віддаємо одразу, не чекаючи кінця файлу
         }
+
+        // Файл дочитано — гарантовано 100%.
+        if (lastPercent < 100)
+            progress?.Report(100);
     }
 
     // DTO -> замовлення; поганий запис -> DomainException з номером запису.

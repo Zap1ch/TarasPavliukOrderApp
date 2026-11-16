@@ -43,13 +43,17 @@ public static class ImportDemo
         Console.WriteLine($"У сховищі до імпорту: {service.All().Count}");
         Console.WriteLine("Імпорт... (Ctrl+C — скасувати)");
 
+        // Додаткове 3: --progress — відсотки; вони є лише в потоковому режимі, тому вмикають і його.
+        bool showProgress = args.Contains("--progress");
+        IProgress<int>? progress = showProgress ? new ConsoleProgress() : null;
+
         // Додаткове 1: --stream — потоковий імпорт (await foreach), інакше весь файл одразу.
-        bool stream = args.Contains("--stream");
+        bool stream = args.Contains("--stream") || showProgress;
         Console.WriteLine(stream ? "Режим: потоковий (IAsyncEnumerable)" : "Режим: увесь файл (LoadAsync)");
 
         // Сам імпорт як дія з токеном — так її можна загорнути в тайм-аут.
         Func<CancellationToken, Task<int>> import = ct => stream
-            ? service.ImportStreamAsync(new JsonOrderImporter(), path, ct)
+            ? service.ImportStreamAsync(new JsonOrderImporter(), path, ct, progress)
             : service.ImportAsync(new JsonOrderImporter(), path, ct);
 
         var sw = Stopwatch.StartNew();

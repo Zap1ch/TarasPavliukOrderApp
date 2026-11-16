@@ -9,5 +9,6 @@ public interface IOrderImporter
     Task<IReadOnlyList<Order>> LoadAsync(string path, CancellationToken ct = default);
 
     // Додаткове 1: потоково, по одному замовленню (await foreach).
-    IAsyncEnumerable<Order> StreamAsync(string path, CancellationToken ct = default);
+    // Додаткове 3: progress — відсоток прочитаного файлу (необов'язково).
+    IAsyncEnumerable<Order> StreamAsync(string path, CancellationToken ct = default, IProgress<int>? progress = null);
 }
