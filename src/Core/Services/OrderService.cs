@@ -61,6 +61,31 @@ public sealed class OrderService(IOrderStore store, IReadOnlyList<INotificationS
         OnChanged(order, OrderChangeKind.OrderConfirmed);
     }
 
+    // Асинхронний імпорт: імпортер приходить параметром (ручний DI), токен передається далі.
+    // Повертає, скільки замовлень реально додано.
+    public async Task<int> ImportAsync(IOrderImporter importer, string path, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(importer);
+
+        var orders = await importer.LoadAsync(path, ct);
+
+        var added = 0;
+        foreach (var order in orders)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            // Ідемпотентність: таке замовлення вже є — пропускаємо, повторний імпорт нічого не дублює.
+            if (_store.GetById(order.Id) is not null)
+                continue;
+
+            _store.Add(order);
+            OnChanged(order, OrderChangeKind.OrderCreated);   // подія лише після успішного додавання
+            added++;
+        }
+
+        return added;
+    }
+
     public IReadOnlyList<Order> All() => _store.List();
 
     public Order? Find(string id) => _store.GetById(id);
