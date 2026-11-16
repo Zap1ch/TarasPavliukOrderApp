@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Core.Abstractions;
 using Core.Domain;
@@ -24,24 +25,48 @@ public sealed class JsonOrderImporter : IOrderImporter
         for (var i = 0; i < dtos.Count; i++)
         {
             ct.ThrowIfCancellationRequested();   // перевірка на кожному записі
-
-            try
-            {
-                // Ті самі перевірки, що й у лабі 4.
-                result.Add(Order.FromDto(dtos[i]));
-            }
-            catch (ArgumentException ex)
-            {
-                // Поганий аргумент у записі — для імпорту це відхилені дані.
-                throw new DomainException($"Запис {i + 1}: {ex.Message}", ex);
-            }
-            catch (DomainException ex)
-            {
-                // Порушене правило замовлення — додаємо номер запису.
-                throw new DomainException($"Запис {i + 1}: {ex.Message}", ex);
-            }
+            result.Add(ToOrder(dtos[i], i + 1));
         }
 
         return result;
+    }
+
+    // Додаткове 1: потоковий імпорт. [EnumeratorCancellation] — токен з WithCancellation(ct) потрапить сюди.
+    public async IAsyncEnumerable<Order> StreamAsync(string path,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                                                FileShare.Read, 4096, useAsync: true);
+
+        // Розбирає JSON-масив по одному елементу, не читаючи весь файл у пам'ять.
+        var number = 0;
+        await foreach (var dto in JsonSerializer.DeserializeAsyncEnumerable<OrderDto>(stream, cancellationToken: ct))
+        {
+            ct.ThrowIfCancellationRequested();
+            number++;
+            yield return ToOrder(dto, number);   // віддаємо одразу, не чекаючи кінця файлу
+        }
+    }
+
+    // DTO -> замовлення; поганий запис -> DomainException з номером запису.
+    private static Order ToOrder(OrderDto? dto, int number)
+    {
+        try
+        {
+            // Ті самі перевірки, що й у лабі 4.
+            return Order.FromDto(dto!);
+        }
+        catch (ArgumentException ex)
+        {
+            // Поганий аргумент у записі — для імпорту це відхилені дані.
+            throw new DomainException($"Запис {number}: {ex.Message}", ex);
+        }
+        catch (DomainException ex)
+        {
+            // Порушене правило замовлення — додаємо номер запису.
+            throw new DomainException($"Запис {number}: {ex.Message}", ex);
+        }
     }
 }

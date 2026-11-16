@@ -48,7 +48,14 @@ public static class ImportDemo
         // Порядок важливий: скасування — першим.
         try
         {
-            int added = await service.ImportAsync(new JsonOrderImporter(), path, cts.Token);
+            // Додаткове 1: --stream — потоковий імпорт (await foreach), інакше весь файл одразу.
+            bool stream = args.Contains("--stream");
+            Console.WriteLine(stream ? "Режим: потоковий (IAsyncEnumerable)" : "Режим: увесь файл (LoadAsync)");
+
+            int added = stream
+                ? await service.ImportStreamAsync(new JsonOrderImporter(), path, cts.Token)
+                : await service.ImportAsync(new JsonOrderImporter(), path, cts.Token);
+
             Console.WriteLine($"Імпортовано записів: {added} (за {sw.ElapsedMilliseconds} мс)");
         }
         catch (OperationCanceledException)

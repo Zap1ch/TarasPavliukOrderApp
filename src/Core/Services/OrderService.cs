@@ -73,14 +73,24 @@ public sealed class OrderService(IOrderStore store, IReadOnlyList<INotificationS
         foreach (var order in orders)
         {
             ct.ThrowIfCancellationRequested();
+            if (TryAddImported(order))
+                added++;
+        }
 
-            // Ідемпотентність: таке замовлення вже є — пропускаємо, повторний імпорт нічого не дублює.
-            if (_store.GetById(order.Id) is not null)
-                continue;
+        return added;
+    }
 
-            _store.Add(order);
-            OnChanged(order, OrderChangeKind.OrderCreated);   // подія лише після успішного додавання
-            added++;
+    // Додаткове 1: потоковий імпорт — кожне замовлення додається, щойно прочитане.
+    // Не атомарний: при помилці на N-му записі попередні вже в сховищі (повторний запуск безпечний).
+    public async Task<int> ImportStreamAsync(IOrderImporter importer, string path, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(importer);
+
+        var added = 0;
+        await foreach (var order in importer.StreamAsync(path, ct))
+        {
+            if (TryAddImported(order))
+                added++;
         }
 
         return added;
@@ -105,6 +115,17 @@ public sealed class OrderService(IOrderStore store, IReadOnlyList<INotificationS
                 result.Add(order);
         }
         return result;
+    }
+
+    // Спільне для обох імпортів. Ідемпотентність: таке замовлення вже є — пропускаємо.
+    private bool TryAddImported(Order order)
+    {
+        if (_store.GetById(order.Id) is not null)
+            return false;
+
+        _store.Add(order);
+        OnChanged(order, OrderChangeKind.OrderCreated);   // подія лише після успішного додавання
+        return true;
     }
 
     // Відсутнє замовлення — помилка пошуку, не бізнес-правило, тому лишається InvalidOperationException.
