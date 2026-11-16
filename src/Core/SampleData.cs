@@ -116,6 +116,7 @@ public static class SampleData
         o20.AddLine("P-6", "Веб-камера", 1500m, 2);
         o20.Cancel();
         orders.Add(o20);
+        
 
         return orders;
     }

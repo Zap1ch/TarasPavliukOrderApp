@@ -37,7 +37,7 @@ public sealed class OrderService(IOrderStore store, IReadOnlyList<INotificationS
         // Правило на кілька замовлень (з лаби 4): не більше 5 чернеток у покупця.
         int drafts = CountDrafts(order.CustomerId);
         if (drafts >= MaxDraftOrders)
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Покупець {order.CustomerId} вже має {drafts} непідтверджених замовлень, нове створити не можна.");
 
         _store.Add(order);
@@ -82,7 +82,7 @@ public sealed class OrderService(IOrderStore store, IReadOnlyList<INotificationS
         return result;
     }
 
-    // Відсутнє замовлення тут — помилка, а не нормальний результат.
+    // Відсутнє замовлення — помилка пошуку, не бізнес-правило, тому лишається InvalidOperationException.
     private Order GetOrThrow(string id) =>
         _store.GetById(id) ?? throw new InvalidOperationException($"Немає замовлення з id={id}.");
 }

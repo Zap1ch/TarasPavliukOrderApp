@@ -41,9 +41,9 @@ public sealed class Order
 
     public void AddLine(string productId, string productName, decimal price, int quantity)
     {
-        // 1. Спочатку перевіряю стан: рядки додаються лише до чернетки.
+        // 1. Спочатку перевіряю стан: рядки додаються лише до чернетки (бізнес-правило).
         if (Status != OrderStatus.Draft)
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Замовлення {Id} має статус {Status}, додавати рядки можна лише до чернетки (Draft)");
 
         // 2. Потім створюю рядок (перевіряє свої аргументи).
@@ -58,7 +58,7 @@ public sealed class Order
         CheckTransition(OrderStatus.Confirmed);
 
         if (_lines.Count == 0)
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Замовлення {Id} порожнє, підтвердити його не можна");
 
         Status = OrderStatus.Confirmed;
@@ -83,10 +83,11 @@ public sealed class Order
         };
     }
 
+    // Недопустимий перехід (напр. повторне підтвердження) — бізнес-правило.
     private void CheckTransition(OrderStatus newStatus)
     {
         if (!CanTransition(Status, newStatus))
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Замовлення {Id}: перехід {Status} → {newStatus} недопустимий");
     }
 
