@@ -16,6 +16,12 @@ public static class ConfigDemo
         Console.WriteLine($"Валюта     : {options.Orders.Currency}");
         Console.WriteLine($"Файл даних : {dataFile}");
 
+        // Секрет з user-secrets або змінної середовища. Друкуємо лише факт наявності, не значення.
+        string? apiKey = config["Integration:ApiKey"];
+        Console.WriteLine(apiKey is null
+            ? "ApiKey     : не заданий"
+            : $"ApiKey     : присутній, довжина {apiKey.Length}");
+
         try
         {
             if (args.Contains("export"))
