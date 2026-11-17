@@ -15,6 +15,7 @@ public static class ConfigDemo
         Console.WriteLine($"Рівень логу: {options.Logging.MinimumLevel}");
         Console.WriteLine($"Валюта     : {options.Orders.Currency}");
         Console.WriteLine($"Файл даних : {dataFile}");
+        Console.WriteLine($"Папка запуску: {Environment.CurrentDirectory}");   // для порівняння: змінюється від запуску до запуску
 
         // Секрет з user-secrets або змінної середовища. Друкуємо лише факт наявності, не значення.
         string? apiKey = config["Integration:ApiKey"];
