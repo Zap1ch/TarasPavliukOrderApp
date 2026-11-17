@@ -7,6 +7,12 @@ using Core.Storage;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
+// Лаба 9: налаштування з appsettings / змінних середовища.
+if (args.Contains("config"))
+{
+    return ConfigDemo.Run(args);
+}
+
 // Лаба 4: демо доменної моделі (окреме порожнє сховище в пам'яті).
 if (args.Contains("--domain"))
 {
