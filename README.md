@@ -632,3 +632,67 @@ Ctrl+C: запустити імпорт великого файлу без `--ti
    dotnet run --project src/Cli -- --import data/import-big.json --progress --timeout 1000
    ```
 4. **Покриття**: `dotnet test --collect:"XPlat Code Coverage"` — близько 32% рядків Core. Код лаби 8 (імпорт, тайм-аут, `DomainException`, сервіс) покритий на 70–100%; не покриті імпортери лаби 3, `FileOrderStore`/`CachingOrderStore` і демо-дані.
+
+
+
+
+## Лабораторна робота 9 — шляхи, JSON, конфігурація, secrets
+
+### Що додано
+- `src/Core/Configuration/AppOptions.cs` — класи налаштувань (`Storage`, `Logging`, `Orders`), без залежностей від пакетів.
+- `src/Cli/appsettings.json` + `appsettings.Development.json` / `appsettings.Production.json` — профілі; копіюються в `bin` (`CopyToOutputDirectory`).
+- `src/Cli/AppConfig.cs` — збирає конфігурацію: `appsettings.json` → `appsettings.{Environment}.json` → user-secrets → змінні `CROSSAPP_*` → аргументи командного рядка (кожне наступне перекриває попереднє).
+- `FileOrderStore` — шлях з конфігурації, JSON у `camelCase` з читабельною кирилицею, атомарний запис (`.tmp` + `File.Move`).
+- Команди `config`, `export`, `import`; секрет `Integration:ApiKey` з user-secrets (друкується лише довжина).
+- Шлях до даних рахується від `AppContext.BaseDirectory`, тому не залежить від папки запуску.
+
+### Команди
+```bash
+dotnet run --project src/Cli -- config    # налаштування, шлях до файлу даних, наявність ApiKey
+dotnet run --project src/Cli -- export    # уся колекція (20 замовлень) → файл даних
+dotnet run --project src/Cli -- import    # читання колекції з файлу даних
+```
+
+### Профілі
+| Профіль | Рівень логу | Каталог даних |
+|---|---|---|
+| Development (за замовчуванням) | Debug | `bin/.../data` |
+| Production | Warning | `bin/.../prod-data` |
+
+Профіль вибирається змінною `CROSSAPP_ENVIRONMENT` (без неї — `Development`).
+
+### Ключі конфігурації
+| Ключ | Значення за замовчуванням | Змінна середовища |
+|---|---|---|
+| `EnvironmentName` | `Development` | `CROSSAPP_EnvironmentName` |
+| `Logging:MinimumLevel` | `Information` (Development: `Debug`, Production: `Warning`) | `CROSSAPP_Logging__MinimumLevel` |
+| `Storage:DataPath` | `data` (Production: `prod-data`) | `CROSSAPP_Storage__DataPath` або просто `CROSSAPP_DATA_PATH` (має пріоритет) |
+| `Storage:FileName` | `orders.json` | `CROSSAPP_Storage__FileName` |
+| `Orders:Currency` | `UAH` | `CROSSAPP_Orders__Currency` |
+| `Integration:ApiKey` | — (лише user-secrets або змінна) | `CROSSAPP_Integration__ApiKey` |
+
+Двокрапка у вкладеному ключі в змінній середовища замінюється подвійним підкресленням: `Storage:DataPath` → `CROSSAPP_Storage__DataPath`. Відносний `DataPath` рахується від каталогу програми, абсолютний береться як є.
+
+### Змінні середовища
+PowerShell (змінна живе до закриття вікна):
+```powershell
+$env:CROSSAPP_DATA_PATH = "$env:USERPROFILE\crossapp-data"
+$env:CROSSAPP_ENVIRONMENT = "Production"
+dotnet run --project src/Cli -- export
+Remove-Item Env:CROSSAPP_DATA_PATH, Env:CROSSAPP_ENVIRONMENT
+```
+
+bash / Git Bash (змінна діє лише на одну команду):
+```bash
+CROSSAPP_DATA_PATH=/tmp/crossapp-data dotnet run --project src/Cli -- export
+CROSSAPP_ENVIRONMENT=Production dotnet run --project src/Cli -- config
+CROSSAPP_Integration__ApiKey=from-env dotnet run --project src/Cli -- config
+```
+
+### Секрет
+```bash
+dotnet user-secrets init --project src/Cli                                  # UserSecretsId у Cli.csproj (комітиться)
+dotnet user-secrets set "Integration:ApiKey" "<ваш-ключ>" --project src/Cli
+dotnet user-secrets list --project src/Cli
+```
+Значення зберігається поза репозиторієм: Windows — `%APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\secrets.json`, Linux/macOS — `~/.microsoft/usersecrets/<UserSecretsId>/secrets.json`. В `appsettings.json` секретів немає.
