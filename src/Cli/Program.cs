@@ -7,8 +7,8 @@ using Core.Storage;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
-// Лаба 9: налаштування з appsettings / змінних середовища.
-if (args.Contains("config"))
+// Лаба 9: налаштування, експорт та імпорт колекції в JSON.
+if (args.Contains("config") || args.Contains("export") || args.Contains("import"))
 {
     return ConfigDemo.Run(args);
 }

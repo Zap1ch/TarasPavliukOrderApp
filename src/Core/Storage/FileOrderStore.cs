@@ -9,10 +9,13 @@ namespace Core.Storage;
 // Сховище у JSON-файлі: дані залишаються після закриття програми.
 public sealed class FileOrderStore(string path) : IOrderStore
 {
-    // Відступи у файлі + кирилиця без \u0410.
+    // Відступи, імена camelCase (id, lines, productName), кирилиця без \u0410.
+    // Читання без урахування регістру: старі файли з "Id", "Lines" теж читаються.
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
@@ -27,7 +30,7 @@ public sealed class FileOrderStore(string path) : IOrderStore
 
         if (File.Exists(_path))
         {
-            var dtos = JsonSerializer.Deserialize<List<OrderDto>>(File.ReadAllText(_path)) ?? [];
+            var dtos = JsonSerializer.Deserialize<List<OrderDto>>(File.ReadAllText(_path), Options) ?? [];
 
             // DTO -> сутність через ті самі перевірки, що й у лабі 4.
             foreach (var dto in dtos)
@@ -40,12 +43,15 @@ public sealed class FileOrderStore(string path) : IOrderStore
         _loaded = true;
     }
 
-    // Записує всі замовлення у файл як DTO.
+    // Атомарний запис: спершу у .tmp, потім одним кроком замінюємо основний файл.
     private void Flush()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        File.WriteAllText(_path,
+
+        var tmp = _path + ".tmp";
+        File.WriteAllText(tmp,
             JsonSerializer.Serialize(_cache.Values.Select(o => o.ToDto()).ToList(), Options));
+        File.Move(tmp, _path, overwrite: true);
     }
 
     public IReadOnlyList<Order> List()

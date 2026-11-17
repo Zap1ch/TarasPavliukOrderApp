@@ -3,10 +3,10 @@ using Core.Abstractions;
 using Core.Storage;
 
 // Фабрика сховищ: вибирає реалізацію за аргументами командного рядка.
-// Лежить у Cli, бо створює конкретні класи (частина composition root).
+// Лаба 9: шлях до файлу береться з конфігурації (appsettings / змінні середовища), а не з коду.
 public static class StoreFactory
 {
-    public static string DataPath => Path.Combine(AppContext.BaseDirectory, "data", "orders.json");
+    public static string DataPath => AppConfig.DataFile(AppConfig.Options(AppConfig.Build([])));
 
     public static IOrderStore Create(string[] args)
     {
