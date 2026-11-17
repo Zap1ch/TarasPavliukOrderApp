@@ -15,7 +15,7 @@ public static class AppConfig
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
             .AddJsonFile($"appsettings.{envName}.json", optional: true)
             .AddUserSecrets(Assembly.GetExecutingAssembly(), optional: true)
-            .AddEnvironmentVariables(prefix: "CROSSAPP_")
+            .AddEnvironmentVariables(prefix: "CROSSAPP_")              // CROSSAPP_Storage__DataPath -> Storage:DataPath
             .AddCommandLine(args)
             .Build();
     }
@@ -25,6 +25,17 @@ public static class AppConfig
         config.Get<AppOptions>() ?? new AppOptions();
 
     // Повний шлях до файлу даних (від каталогу програми, а не від папки запуску).
-    public static string DataFile(AppOptions options) =>
-        options.Storage.ResolveFullPath(AppContext.BaseDirectory);
+    public static string DataFile(AppOptions options)
+    {
+        // Проста змінна CROSSAPP_DATA_PATH перекриває Storage:DataPath з будь-якого джерела.
+        string? simplePath = Environment.GetEnvironmentVariable("CROSSAPP_DATA_PATH");
+
+        var storage = new StorageOptions
+        {
+            DataPath = string.IsNullOrWhiteSpace(simplePath) ? options.Storage.DataPath : simplePath,
+            FileName = options.Storage.FileName
+        };
+
+        return storage.ResolveFullPath(AppContext.BaseDirectory);
+    }
 }
