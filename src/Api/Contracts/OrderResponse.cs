@@ -8,6 +8,7 @@ public sealed record OrderLineResponse(string ProductId, string ProductName, dec
 public sealed record OrderResponse(
     string Id,
     string Customer,
+    DateTime CreatedAt,
     string Status,
     IReadOnlyList<OrderLineResponse> Lines,
     decimal Total);
@@ -18,6 +19,7 @@ public static class OrderMapping
     public static OrderResponse ToResponse(this Order order) =>
         new(order.Id,
             order.CustomerId,
+            order.CreatedAt,
             order.Status.ToString(),
             order.Lines.Select(l => new OrderLineResponse(l.ProductId, l.ProductName, l.Price, l.Quantity)).ToList(),
             order.Total);

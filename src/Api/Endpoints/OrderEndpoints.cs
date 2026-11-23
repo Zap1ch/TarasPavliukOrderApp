@@ -31,13 +31,14 @@ public static class OrderEndpoints
             return TypedResults.Created($"/api/orders/{created.Id}", created.ToResponse());
         });
 
-        // PUT /api/orders/{id} — повна заміна: 200 або 404.
+        // PUT /api/orders/{id} — повна заміна: 200 або 404. Дата створення лишається стара.
         group.MapPut("/{id}", Results<Ok<OrderResponse>, NotFound> (string id, SaveOrderRequest request, IOrderStore store) =>
         {
-            if (store.GetById(id) is null)
+            var existing = store.GetById(id);
+            if (existing is null)
                 return TypedResults.NotFound();
 
-            var replacement = BuildOrder(id, request);
+            var replacement = BuildOrder(id, request, existing.CreatedAt);
             store.Update(replacement);
             return TypedResults.Ok(replacement.ToResponse());
         });
@@ -48,9 +49,9 @@ public static class OrderEndpoints
     }
 
     // Нове замовлення-чернетка з рядками із запиту — через правила лаби 4.
-    private static Order BuildOrder(string id, SaveOrderRequest request)
+    private static Order BuildOrder(string id, SaveOrderRequest request, DateTime? createdAt = null)
     {
-        var order = Order.Create(id, request.Customer);
+        var order = Order.Create(id, request.Customer, createdAt);
         foreach (var line in request.Lines)
             order.AddLine(line.ProductId, line.ProductName, line.Price, line.Quantity);
         return order;

@@ -9,6 +9,9 @@ public sealed class Order
     public string Id { get; }
     public string CustomerId { get; }
 
+    // Лаба 10: дата створення (UTC). Задається один раз при створенні.
+    public DateTime CreatedAt { get; }
+
     // Стан замовлення. Змінюється лише через Confirm і Cancel.
     public OrderStatus Status { get; private set; } = OrderStatus.Draft;
 
@@ -20,14 +23,16 @@ public sealed class Order
 
     public decimal Total => _lines.Sum(l => l.Total);
 
-    private Order(string id, string customerId)
+    private Order(string id, string customerId, DateTime createdAt)
     {
         Id = id;
         CustomerId = customerId;
+        CreatedAt = createdAt;
     }
 
     // Єдиний спосіб створити замовлення: усі перевірки тут.
-    public static Order Create(string id, string customerId)
+    // createdAt необов'язковий: якщо не передали — поточний час.
+    public static Order Create(string id, string customerId, DateTime? createdAt = null)
     {
         if (string.IsNullOrWhiteSpace(id))
             throw new ArgumentException("Номер замовлення обов'язковий", nameof(id));
@@ -36,7 +41,7 @@ public sealed class Order
             throw new ArgumentException(
                 $"Замовлення {id.Trim()} має містити ідентифікатор покупця", nameof(customerId));
 
-        return new Order(id.Trim(), customerId.Trim());
+        return new Order(id.Trim(), customerId.Trim(), createdAt ?? DateTime.UtcNow);
     }
 
     public void AddLine(string productId, string productName, decimal price, int quantity)
@@ -97,7 +102,8 @@ public sealed class Order
             CustomerId,
             Status.ToString(),
             _lines.Select(l => new OrderLineDto(l.ProductId, l.ProductName, l.Price, l.Quantity))
-                  .ToList());
+                  .ToList(),
+            CreatedAt);
 
     // DTO -> сутність: лише через Create / AddLine / Confirm / Cancel, тож пошкоджені дані не створять некоректний об'єкт.
     public static Order FromDto(OrderDto dto)
@@ -105,7 +111,7 @@ public sealed class Order
         ArgumentNullException.ThrowIfNull(dto);
         ArgumentNullException.ThrowIfNull(dto.Lines);
 
-        var order = Create(dto.Id, dto.CustomerId);
+        var order = Create(dto.Id, dto.CustomerId, dto.CreatedAt);
         OrderStatus status = ParseStatus(order.Id, dto.Status);
 
         foreach (var line in dto.Lines)
