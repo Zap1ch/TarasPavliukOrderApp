@@ -22,18 +22,24 @@ public static class OrderEndpoints
                 ? TypedResults.Ok(found.ToResponse())
                 : TypedResults.NotFound());
 
-        // POST /api/orders — номер дає сервер, відповідь 201 з адресою нового замовлення.
-        group.MapPost("/", (SaveOrderRequest request, IOrderStore store) =>
+        // POST /api/orders — 201 з адресою нового замовлення або 400 зі списком помилок.
+        group.MapPost("/", Results<Created<OrderResponse>, ValidationProblem> (SaveOrderRequest request, IOrderStore store) =>
         {
+            if (!request.TryValidate(out var errors))
+                return TypedResults.ValidationProblem(errors);
+
             var id = Guid.NewGuid().ToString("N")[..8];
             var created = BuildOrder(id, request);
             store.Add(created);
             return TypedResults.Created($"/api/orders/{created.Id}", created.ToResponse());
         });
 
-        // PUT /api/orders/{id} — повна заміна: 200 або 404. Дата створення лишається стара.
-        group.MapPut("/{id}", Results<Ok<OrderResponse>, NotFound> (string id, SaveOrderRequest request, IOrderStore store) =>
+        // PUT /api/orders/{id} — повна заміна: 200, 404 або 400. Дата створення лишається стара.
+        group.MapPut("/{id}", Results<Ok<OrderResponse>, NotFound, ValidationProblem> (string id, SaveOrderRequest request, IOrderStore store) =>
         {
+            if (!request.TryValidate(out var errors))
+                return TypedResults.ValidationProblem(errors);
+
             var existing = store.GetById(id);
             if (existing is null)
                 return TypedResults.NotFound();
