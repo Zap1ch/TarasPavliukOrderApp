@@ -1,72 +1,76 @@
 @baseUrl = http://localhost:5080
 
-### Сервер живий -> 200
+### Перевірка, що сервер живий
 GET {{baseUrl}}/health
 
-### Список усіх замовлень -> 200
+### Список замовлень (перша сторінка, 20 штук)
 GET {{baseUrl}}/api/orders
 
-### Неіснуюче замовлення -> 404
+### Неіснуюче замовлення → 404
 GET {{baseUrl}}/api/orders/O-999
 
-### ===== Цикл create-read-update-delete =====
+### ===== CRUD-цикл =====
 
-### 1. CREATE: нове замовлення -> 201 + Location
+### CREATE → 201 Created
 # @name createOrder
 POST {{baseUrl}}/api/orders
 Content-Type: application/json
 
 {
-  "customer": "C-500",
+  "customer": "C-200",
   "lines": [
     { "productId": "P-1", "productName": "Клавіатура", "price": 1200, "quantity": 1 },
-    { "productId": "P-2", "productName": "Миша", "price": 450, "quantity": 2 }
+    { "productId": "P-2", "productName": "Миша", "price": 450.5, "quantity": 2 }
   ]
 }
 
-### 2. READ: створене замовлення -> 200 (id береться з відповіді POST)
+### READ створеного → 200
 GET {{baseUrl}}/api/orders/{{createOrder.response.body.$.id}}
 
-### 2a. Сума замовлення (варіант «Замовлення») -> 200, total = 2100
+### Сума створеного → 200
 GET {{baseUrl}}/api/orders/{{createOrder.response.body.$.id}}/total
 
-### 3. UPDATE: повна заміна -> 200, total = 3600
+### UPDATE (кількість мишок 3) → 200
 PUT {{baseUrl}}/api/orders/{{createOrder.response.body.$.id}}
 Content-Type: application/json
 
 {
-  "customer": "C-500",
+  "customer": "C-200",
   "lines": [
-    { "productId": "P-1", "productName": "Клавіатура", "price": 1200, "quantity": 3 }
+    { "productId": "P-1", "productName": "Клавіатура", "price": 1200, "quantity": 1 },
+    { "productId": "P-2", "productName": "Миша", "price": 450.5, "quantity": 3 }
   ]
 }
 
-### 4. DELETE -> 204
+### DELETE → 204
 DELETE {{baseUrl}}/api/orders/{{createOrder.response.body.$.id}}
 
-### 5. READ після DELETE -> 404
+### READ після видалення → 404
 GET {{baseUrl}}/api/orders/{{createOrder.response.body.$.id}}
 
 ### ===== Помилки =====
 
-### Валідація: порожній покупець і порожні рядки -> 400
+### Порожній покупець і немає рядків → 400
 POST {{baseUrl}}/api/orders
 Content-Type: application/json
 
-{ "customer": "", "lines": [] }
+{
+  "customer": "",
+  "lines": []
+}
 
-### PUT з порожньою назвою товару -> 400
+### Порожня назва товару в PUT → 400
 PUT {{baseUrl}}/api/orders/O-004
 Content-Type: application/json
 
 {
   "customer": "C-101",
   "lines": [
-    { "productId": "P-5", "productName": "", "price": 250, "quantity": 1 }
+    { "productId": "P-5", "productName": "", "price": 250, "quantity": 3 }
   ]
 }
 
-### PUT підтвердженого замовлення -> 409
+### Заміна підтвердженого замовлення → 409
 PUT {{baseUrl}}/api/orders/O-001
 Content-Type: application/json
 
@@ -76,3 +80,20 @@ Content-Type: application/json
     { "productId": "P-1", "productName": "Клавіатура", "price": 1200, "quantity": 2 }
   ]
 }
+
+### ===== Додаткове 1: пагінація і пошук =====
+
+### 1-ша сторінка по 5 (items: 5, total: 20)
+GET {{baseUrl}}/api/orders?page=1&pageSize=5
+
+### 4-та сторінка по 5 (O-016 … O-020)
+GET {{baseUrl}}/api/orders?page=4&pageSize=5
+
+### Пошук за покупцем (O-001, O-002, O-013 — total: 3)
+GET {{baseUrl}}/api/orders?search=C-100
+
+### Пошук за товаром кирилицею (total: 5)
+GET {{baseUrl}}/api/orders?search=Миша
+
+### Некоректні значення виправляються (page=1, pageSize=100)
+GET {{baseUrl}}/api/orders?page=0&pageSize=1000
