@@ -34,8 +34,8 @@ public static class OrderEndpoints
             return TypedResults.Created($"/api/orders/{created.Id}", created.ToResponse());
         });
 
-        // PUT /api/orders/{id} — повна заміна: 200, 404 або 400. Дата створення лишається стара.
-        group.MapPut("/{id}", Results<Ok<OrderResponse>, NotFound, ValidationProblem> (string id, SaveOrderRequest request, IOrderStore store) =>
+        // PUT /api/orders/{id} — повна заміна: 200, 400, 404 або 409 (не чернетка). Дата створення лишається стара.
+        group.MapPut("/{id}", Results<Ok<OrderResponse>, NotFound, ValidationProblem, ProblemHttpResult> (string id, SaveOrderRequest request, IOrderStore store) =>
         {
             if (!request.TryValidate(out var errors))
                 return TypedResults.ValidationProblem(errors);
@@ -43,6 +43,13 @@ public static class OrderEndpoints
             var existing = store.GetById(id);
             if (existing is null)
                 return TypedResults.NotFound();
+
+            // Правило лаби 4: змінювати рядки можна лише в чернетці -> 409 Conflict, а не 500.
+            if (existing.Status != OrderStatus.Draft)
+                return TypedResults.Problem(
+                    title: "Замовлення не можна змінити",
+                    detail: $"Замовлення {id} має статус {existing.Status}, замінити можна лише чернетку (Draft).",
+                    statusCode: StatusCodes.Status409Conflict);
 
             var replacement = BuildOrder(id, request, existing.CreatedAt);
             store.Update(replacement);
