@@ -696,3 +696,59 @@ dotnet user-secrets set "Integration:ApiKey" "<ваш-ключ>" --project src/C
 dotnet user-secrets list --project src/Cli
 ```
 Значення зберігається поза репозиторієм: Windows — `%APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\secrets.json`, Linux/macOS — `~/.microsoft/usersecrets/<UserSecretsId>/secrets.json`. В `appsettings.json` секретів немає.
+
+
+
+
+
+
+## Лабораторна робота 10 — Minimal API: CRUD над Core, валідація, OpenAPI (Scalar)
+
+### Що додано
+- `src/Api` — друга точка входу (ASP.NET Core Minimal API) поруч із Cli; використовує той самий Core.
+- `Contracts/` — DTO: вихідний `OrderResponse` (id, customer, createdAt, status, lines, total) і вхідний `SaveOrderRequest` (customer, lines) з валідацією `TryValidate`.
+- `Endpoints/OrderEndpoints.cs` — маршрути `/api/orders`.
+- Сховище `IOrderStore` зареєстроване в DI як Singleton (потокобезпечне, під `lock`); стартові дані — 20 замовлень.
+- Помилки — у форматі ProblemDetails (RFC 9457) без stack trace; OpenAPI і Scalar — лише в Development.
+
+### Запуск
+Порт зафіксовано в `src/Api/Properties/launchSettings.json` — **5080**.
+```bash
+dotnet run --project src/Api                                   # http://localhost:5080, Development
+dotnet run --project src/Api --urls http://localhost:5080      # те саме, порт явно
+```
+- Scalar UI: http://localhost:5080/scalar/v1
+- OpenAPI: http://localhost:5080/openapi/v1.json
+- Перевірка: http://localhost:5080/health
+
+### Маршрути
+| Метод | Шлях | Тіло | Відповіді |
+|---|---|---|---|
+| GET | `/api/orders` | — | 200 |
+| GET | `/api/orders/{id}` | — | 200, 404 |
+| POST | `/api/orders` | `SaveOrderRequest` | 201 + Location, 400 |
+| PUT | `/api/orders/{id}` | `SaveOrderRequest` | 200, 400, 404, 409 (не чернетка) |
+| DELETE | `/api/orders/{id}` | — | 204, 404 |
+
+### Приклади curl (Git Bash)
+```bash
+curl -i http://localhost:5080/api/orders/O-001
+
+curl -i -X POST http://localhost:5080/api/orders -H "Content-Type: application/json" \
+  -d '{"customer":"C-500","lines":[{"productId":"P-1","productName":"Keyboard","price":1200,"quantity":1}]}'
+
+curl -i -X PUT http://localhost:5080/api/orders/<id> -H "Content-Type: application/json" \
+  -d '{"customer":"C-500","lines":[{"productId":"P-1","productName":"Keyboard","price":1200,"quantity":3}]}'
+
+curl -i -X DELETE http://localhost:5080/api/orders/<id>
+
+# 400 з переліком полів
+curl -i -X POST http://localhost:5080/api/orders -H "Content-Type: application/json" \
+  -d '{"customer":"","lines":[]}'
+```
+`<id>` — номер з відповіді POST (заголовок `Location`).
+
+Примітки:
+- без `-H "Content-Type: application/json"` сервер відповідає 415;
+- у Git Bash на Windows кирилицю в `-d` краще не писати (передається не в UTF-8 → 400); для кирилиці — тіло у файлі: `--data-binary @order.json`;
+- у Windows PowerShell замість `curl` пишіть `curl.exe`.
