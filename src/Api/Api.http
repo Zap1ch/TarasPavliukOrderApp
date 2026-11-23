@@ -97,3 +97,21 @@ GET {{baseUrl}}/api/orders?search=Миша
 
 ### Некоректні значення виправляються (page=1, pageSize=100)
 GET {{baseUrl}}/api/orders?page=0&pageSize=1000
+
+
+### ===== Додаткове 3: DomainException → 409 =====
+
+### Підтвердити чернетку O-004 → 200 (status: Confirmed)
+POST {{baseUrl}}/api/orders/O-004/confirm
+
+### Підтвердити ще раз O-004 → 409 (перехід Confirmed → Confirmed недопустимий)
+POST {{baseUrl}}/api/orders/O-004/confirm
+
+### Скасувати вже скасоване O-005 → 409
+POST {{baseUrl}}/api/orders/O-005/cancel
+
+### Скасувати чернетку O-008 → 200 (status: Cancelled)
+POST {{baseUrl}}/api/orders/O-008/cancel
+
+### Неіснуюче замовлення → 404
+POST {{baseUrl}}/api/orders/O-999/confirm

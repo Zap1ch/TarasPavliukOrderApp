@@ -105,6 +105,35 @@ public static class OrderEndpoints
             return TypedResults.Ok(updated.ToResponse());
         });
 
+        // POST /api/orders/{id}/confirm — підтвердити замовлення
+        // статус не перевіряю: якщо перехід недопустимий, Order кине DomainException → обробник дасть 409
+        group.MapPost("/{id}/confirm", Results<Ok<OrderResponse>, NotFound> (string id, IOrderStore store) =>
+        {
+            var order = store.GetById(id);
+            if (order is null)
+                return TypedResults.NotFound();
+
+            order.Confirm();
+            store.Update(order);
+
+            return TypedResults.Ok(order.ToResponse());
+        })
+        .ProducesProblem(StatusCodes.Status409Conflict);
+
+        // POST /api/orders/{id}/cancel — скасувати замовлення
+        group.MapPost("/{id}/cancel", Results<Ok<OrderResponse>, NotFound> (string id, IOrderStore store) =>
+        {
+            var order = store.GetById(id);
+            if (order is null)
+                return TypedResults.NotFound();
+
+            order.Cancel();
+            store.Update(order);
+
+            return TypedResults.Ok(order.ToResponse());
+        })
+        .ProducesProblem(StatusCodes.Status409Conflict);
+
         // DELETE /api/orders/{id} — видалити замовлення
         group.MapDelete("/{id}", Results<NoContent, NotFound> (string id, IOrderStore store) =>
         {

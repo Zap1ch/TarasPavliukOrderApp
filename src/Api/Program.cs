@@ -1,5 +1,6 @@
 using System.Text.Encodings.Web;
 using Api.Endpoints;
+using Api.Errors;
 using Core;
 using Core.Abstractions;
 using Core.Storage;
@@ -13,6 +14,9 @@ builder.Services.AddOpenApi();
 // Формат помилок RFC 9457: усі помилки — коротке JSON ProblemDetails.
 builder.Services.AddProblemDetails();
 
+// Окремий обробник: DomainException (порушене бізнес-правило) -> 409 Conflict.
+builder.Services.AddExceptionHandler<DomainExceptionHandler>();
+
 // Сховище в DI: одне на весь застосунок, стартові дані — 20 замовлень із SampleData.
 builder.Services.AddSingleton<IOrderStore>(_ => new InMemoryOrderStore(SampleData.Orders()));
 
@@ -23,6 +27,7 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 var app = builder.Build();
 
 // Будь-який виняток -> ProblemDetails без stack trace.
+// DomainException забирає DomainExceptionHandler (409).
 // Тіло, яке не розібралося (BadHttpRequestException), лишається 400, решта — 500.
 app.UseExceptionHandler(new ExceptionHandlerOptions
 {
