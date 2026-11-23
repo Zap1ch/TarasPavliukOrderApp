@@ -13,6 +13,9 @@ public sealed record OrderResponse(
     IReadOnlyList<OrderLineResponse> Lines,
     decimal Total);
 
+// Варіант «Замовлення»: відповідь маршруту GET /api/orders/{id}/total.
+public sealed record OrderTotalResponse(string Id, decimal Total, int LinesCount);
+
 // Перетворення Order -> OrderResponse в одному місці.
 public static class OrderMapping
 {

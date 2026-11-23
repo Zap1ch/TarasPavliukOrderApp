@@ -1,0 +1,78 @@
+@baseUrl = http://localhost:5080
+
+### Сервер живий -> 200
+GET {{baseUrl}}/health
+
+### Список усіх замовлень -> 200
+GET {{baseUrl}}/api/orders
+
+### Неіснуюче замовлення -> 404
+GET {{baseUrl}}/api/orders/O-999
+
+### ===== Цикл create-read-update-delete =====
+
+### 1. CREATE: нове замовлення -> 201 + Location
+# @name createOrder
+POST {{baseUrl}}/api/orders
+Content-Type: application/json
+
+{
+  "customer": "C-500",
+  "lines": [
+    { "productId": "P-1", "productName": "Клавіатура", "price": 1200, "quantity": 1 },
+    { "productId": "P-2", "productName": "Миша", "price": 450, "quantity": 2 }
+  ]
+}
+
+### 2. READ: створене замовлення -> 200 (id береться з відповіді POST)
+GET {{baseUrl}}/api/orders/{{createOrder.response.body.$.id}}
+
+### 2a. Сума замовлення (варіант «Замовлення») -> 200, total = 2100
+GET {{baseUrl}}/api/orders/{{createOrder.response.body.$.id}}/total
+
+### 3. UPDATE: повна заміна -> 200, total = 3600
+PUT {{baseUrl}}/api/orders/{{createOrder.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "customer": "C-500",
+  "lines": [
+    { "productId": "P-1", "productName": "Клавіатура", "price": 1200, "quantity": 3 }
+  ]
+}
+
+### 4. DELETE -> 204
+DELETE {{baseUrl}}/api/orders/{{createOrder.response.body.$.id}}
+
+### 5. READ після DELETE -> 404
+GET {{baseUrl}}/api/orders/{{createOrder.response.body.$.id}}
+
+### ===== Помилки =====
+
+### Валідація: порожній покупець і порожні рядки -> 400
+POST {{baseUrl}}/api/orders
+Content-Type: application/json
+
+{ "customer": "", "lines": [] }
+
+### PUT з порожньою назвою товару -> 400
+PUT {{baseUrl}}/api/orders/O-004
+Content-Type: application/json
+
+{
+  "customer": "C-101",
+  "lines": [
+    { "productId": "P-5", "productName": "", "price": 250, "quantity": 1 }
+  ]
+}
+
+### PUT підтвердженого замовлення -> 409
+PUT {{baseUrl}}/api/orders/O-001
+Content-Type: application/json
+
+{
+  "customer": "C-100",
+  "lines": [
+    { "productId": "P-1", "productName": "Клавіатура", "price": 1200, "quantity": 2 }
+  ]
+}

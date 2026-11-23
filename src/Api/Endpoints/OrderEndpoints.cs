@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Api.Endpoints;
 
-// Лаба 10: маршрути /api/orders — список, одне, створити, замінити, видалити.
+// Лаба 10: маршрути /api/orders — список, одне, створити, замінити, видалити, сума.
 public static class OrderEndpoints
 {
     public static void MapOrders(this WebApplication app)
@@ -20,6 +20,12 @@ public static class OrderEndpoints
         group.MapGet("/{id}", Results<Ok<OrderResponse>, NotFound> (string id, IOrderStore store) =>
             store.GetById(id) is { } found
                 ? TypedResults.Ok(found.ToResponse())
+                : TypedResults.NotFound());
+
+        // GET /api/orders/{id}/total — варіант «Замовлення»: сума і кількість рядків, 200 або 404.
+        group.MapGet("/{id}/total", Results<Ok<OrderTotalResponse>, NotFound> (string id, IOrderStore store) =>
+            store.GetById(id) is { } found
+                ? TypedResults.Ok(new OrderTotalResponse(found.Id, found.Total, found.Lines.Count))
                 : TypedResults.NotFound());
 
         // POST /api/orders — 201 з адресою нового замовлення або 400 зі списком помилок.

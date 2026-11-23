@@ -710,6 +710,7 @@ dotnet user-secrets list --project src/Cli
 - `Endpoints/OrderEndpoints.cs` — маршрути `/api/orders`.
 - Сховище `IOrderStore` зареєстроване в DI як Singleton (потокобезпечне, під `lock`); стартові дані — 20 замовлень.
 - Помилки — у форматі ProblemDetails (RFC 9457) без stack trace; OpenAPI і Scalar — лише в Development.
+- `Api.http` — готові запити для повного циклу CRUD.
 
 ### Запуск
 Порт зафіксовано в `src/Api/Properties/launchSettings.json` — **5080**.
@@ -726,6 +727,7 @@ dotnet run --project src/Api --urls http://localhost:5080      # те саме, 
 |---|---|---|---|
 | GET | `/api/orders` | — | 200 |
 | GET | `/api/orders/{id}` | — | 200, 404 |
+| GET | `/api/orders/{id}/total` | — | 200, 404 |
 | POST | `/api/orders` | `SaveOrderRequest` | 201 + Location, 400 |
 | PUT | `/api/orders/{id}` | `SaveOrderRequest` | 200, 400, 404, 409 (не чернетка) |
 | DELETE | `/api/orders/{id}` | — | 204, 404 |
@@ -733,6 +735,8 @@ dotnet run --project src/Api --urls http://localhost:5080      # те саме, 
 ### Приклади curl (Git Bash)
 ```bash
 curl -i http://localhost:5080/api/orders/O-001
+
+curl -i http://localhost:5080/api/orders/O-001/total    # {"id":"O-001","total":2100,"linesCount":2}
 
 curl -i -X POST http://localhost:5080/api/orders -H "Content-Type: application/json" \
   -d '{"customer":"C-500","lines":[{"productId":"P-1","productName":"Keyboard","price":1200,"quantity":1}]}'
@@ -748,7 +752,9 @@ curl -i -X POST http://localhost:5080/api/orders -H "Content-Type: application/j
 ```
 `<id>` — номер з відповіді POST (заголовок `Location`).
 
+Усі запити разом (повний цикл CRUD і помилки) — у файлі `src/Api/Api.http` (VS Code + розширення REST Client, кнопка «Send Request»; запити надсилати зверху вниз).
+
 Примітки:
 - без `-H "Content-Type: application/json"` сервер відповідає 415;
-- у Git Bash на Windows кирилицю в `-d` краще не писати (передається не в UTF-8 → 400); для кирилиці — тіло у файлі: `--data-binary @order.json`;
+- у Git Bash на Windows кирилицю в `-d` краще не писати (передається не в UTF-8 → 400); для кирилиці — тіло у файлі (`--data-binary @order.json`) або `Api.http`;
 - у Windows PowerShell замість `curl` пишіть `curl.exe`.
