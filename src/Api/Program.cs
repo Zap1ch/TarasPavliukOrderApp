@@ -1,9 +1,12 @@
 using System.Text.Encodings.Web;
+using Api.Contracts;
 using Api.Endpoints;
 using Api.Errors;
+using Api.Validation;
 using Core;
 using Core.Abstractions;
 using Core.Storage;
+using FluentValidation;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,6 +19,9 @@ builder.Services.AddProblemDetails();
 
 // Окремий обробник: DomainException (порушене бізнес-правило) -> 409 Conflict.
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
+
+// Валідатор FluentValidation для тіла POST/PUT (його бере ValidationFilter).
+builder.Services.AddScoped<IValidator<SaveOrderRequest>, SaveOrderRequestValidator>();
 
 // Сховище в DI: одне на весь застосунок, стартові дані — 20 замовлень із SampleData.
 builder.Services.AddSingleton<IOrderStore>(_ => new InMemoryOrderStore(SampleData.Orders()));

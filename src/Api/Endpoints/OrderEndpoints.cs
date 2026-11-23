@@ -1,4 +1,5 @@
 using Api.Contracts;
+using Api.Validation;
 using Core.Abstractions;
 using Core.Domain;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -65,26 +66,22 @@ public static class OrderEndpoints
         });
 
         // POST /api/orders — створити нове замовлення
-        group.MapPost("/", Results<Created<OrderResponse>, ValidationProblem> (SaveOrderRequest request, IOrderStore store) =>
+        // валідацію робить ValidationFilter ще до цього коду
+        group.MapPost("/", (SaveOrderRequest request, IOrderStore store) =>
         {
-            // спершу перевіряю вхідні дані
-            if (!request.TryValidate(out var errors))
-                return TypedResults.ValidationProblem(errors);
-
             // короткий унікальний номер
             var id = Guid.NewGuid().ToString("N")[..8];
             var order = BuildOrder(id, request);
             store.Add(order);
 
             return TypedResults.Created($"/api/orders/{id}", order.ToResponse());
-        });
+        })
+        .AddEndpointFilter<ValidationFilter<SaveOrderRequest>>()
+        .ProducesValidationProblem();
 
         // PUT /api/orders/{id} — повністю замінити замовлення
-        group.MapPut("/{id}", Results<Ok<OrderResponse>, NotFound, ValidationProblem, ProblemHttpResult> (string id, SaveOrderRequest request, IOrderStore store) =>
+        group.MapPut("/{id}", Results<Ok<OrderResponse>, NotFound, ProblemHttpResult> (string id, SaveOrderRequest request, IOrderStore store) =>
         {
-            if (!request.TryValidate(out var errors))
-                return TypedResults.ValidationProblem(errors);
-
             var existing = store.GetById(id);
             if (existing is null)
                 return TypedResults.NotFound();
@@ -103,7 +100,9 @@ public static class OrderEndpoints
             store.Update(updated);
 
             return TypedResults.Ok(updated.ToResponse());
-        });
+        })
+        .AddEndpointFilter<ValidationFilter<SaveOrderRequest>>()
+        .ProducesValidationProblem();
 
         // POST /api/orders/{id}/confirm — підтвердити замовлення
         // статус не перевіряю: якщо перехід недопустимий, Order кине DomainException → обробник дасть 409
