@@ -699,18 +699,18 @@ dotnet user-secrets list --project src/Cli
 
 
 
-
-
-
 ## Лабораторна робота 10 — Minimal API: CRUD над Core, валідація, OpenAPI (Scalar)
 
 ### Що додано
 - `src/Api` — друга точка входу (ASP.NET Core Minimal API) поруч із Cli; використовує той самий Core.
-- `Contracts/` — DTO: вихідний `OrderResponse` (id, customer, createdAt, status, lines, total) і вхідний `SaveOrderRequest` (customer, lines) з валідацією `TryValidate`.
+- `Contracts/` — DTO: вихідний `OrderResponse` (id, customer, createdAt, status, lines, total), вхідний `SaveOrderRequest` (customer, lines) і `PagedResponse` (items, total) для списку.
+- `Validation/` — правила перевірки `SaveOrderRequest` на FluentValidation і фільтр `ValidationFilter`, підключений до POST і PUT через `AddEndpointFilter`.
 - `Endpoints/OrderEndpoints.cs` — маршрути `/api/orders`.
 - Сховище `IOrderStore` зареєстроване в DI як Singleton (потокобезпечне, під `lock`); стартові дані — 20 замовлень.
-- Помилки — у форматі ProblemDetails (RFC 9457) без stack trace; OpenAPI і Scalar — лише в Development.
-- `Api.http` — готові запити для повного циклу CRUD.
+- Помилки — у форматі ProblemDetails (RFC 9457) без stack trace; `DomainException` перетворює на 409 окремий обробник `Errors/DomainExceptionHandler.cs`.
+- OpenAPI і Scalar — лише в Development.
+- `Api.http` — готові запити для повного циклу CRUD, помилок і додаткових завдань.
+- `tests/Api.Tests` — інтеграційні тести на `WebApplicationFactory`.
 
 ### Запуск
 Порт зафіксовано в `src/Api/Properties/launchSettings.json` — **5080**.
@@ -725,11 +725,13 @@ dotnet run --project src/Api --urls http://localhost:5080      # те саме, 
 ### Маршрути
 | Метод | Шлях | Тіло | Відповіді |
 |---|---|---|---|
-| GET | `/api/orders` | — | 200 |
+| GET | `/api/orders?page=1&pageSize=20&search=...` | — | 200 `{ items, total }` |
 | GET | `/api/orders/{id}` | — | 200, 404 |
 | GET | `/api/orders/{id}/total` | — | 200, 404 |
 | POST | `/api/orders` | `SaveOrderRequest` | 201 + Location, 400 |
 | PUT | `/api/orders/{id}` | `SaveOrderRequest` | 200, 400, 404, 409 (не чернетка) |
+| POST | `/api/orders/{id}/confirm` | — | 200, 404, 409 (недопустимий перехід) |
+| POST | `/api/orders/{id}/cancel` | — | 200, 404, 409 (недопустимий перехід) |
 | DELETE | `/api/orders/{id}` | — | 204, 404 |
 
 ### Приклади curl (Git Bash)
@@ -737,6 +739,9 @@ dotnet run --project src/Api --urls http://localhost:5080      # те саме, 
 curl -i http://localhost:5080/api/orders/O-001
 
 curl -i http://localhost:5080/api/orders/O-001/total    # {"id":"O-001","total":2100,"linesCount":2}
+
+curl "http://localhost:5080/api/orders?page=2&pageSize=5"   # O-006…O-010, "total":20
+curl "http://localhost:5080/api/orders?search=C-100"        # O-001, O-002, O-013, "total":3
 
 curl -i -X POST http://localhost:5080/api/orders -H "Content-Type: application/json" \
   -d '{"customer":"C-500","lines":[{"productId":"P-1","productName":"Keyboard","price":1200,"quantity":1}]}'
@@ -749,12 +754,28 @@ curl -i -X DELETE http://localhost:5080/api/orders/<id>
 # 400 з переліком полів
 curl -i -X POST http://localhost:5080/api/orders -H "Content-Type: application/json" \
   -d '{"customer":"","lines":[]}'
+
+# 409: повторне підтвердження (DomainException)
+curl -i -X POST http://localhost:5080/api/orders/O-001/confirm
 ```
 `<id>` — номер з відповіді POST (заголовок `Location`).
 
-Усі запити разом (повний цикл CRUD і помилки) — у файлі `src/Api/Api.http` (VS Code + розширення REST Client, кнопка «Send Request»; запити надсилати зверху вниз).
+Усі запити разом (повний цикл CRUD, помилки, пагінація, confirm/cancel) — у файлі `src/Api/Api.http` (VS Code + розширення REST Client, кнопка «Send Request»; запити надсилати зверху вниз).
 
 Примітки:
 - без `-H "Content-Type: application/json"` сервер відповідає 415;
 - у Git Bash на Windows кирилицю в `-d` краще не писати (передається не в UTF-8 → 400); для кирилиці — тіло у файлі (`--data-binary @order.json`) або `Api.http`;
 - у Windows PowerShell замість `curl` пишіть `curl.exe`.
+
+### Тести
+```bash
+dotnet test                   # усі тести: Core.Tests (20) + Api.Tests (2)
+dotnet test tests/Api.Tests   # лише інтеграційні
+```
+Сервер для тестів запускати не треба: `WebApplicationFactory<Program>` піднімає API в пам'яті. Перед `dotnet test` зупиніть запущений `dotnet run --project src/Api`, інакше Windows не дасть перезібрати `Api.dll`.
+
+### Додаткові завдання
+1. **Пагінація і пошук** — `GET /api/orders?page=&pageSize=&search=` повертає `{ items, total }`. Пошук без урахування регістру за номером, покупцем або назвою товару; сортування за номером; `page < 1` → 1, `pageSize` обмежується 1–100.
+2. **DomainException → 409** — `DomainExceptionHandler` (`IExceptionHandler`, реєстрація `AddExceptionHandler`) ловить лише `DomainException` і повертає 409 ProblemDetails з текстом винятку в `detail`; інші винятки, як і раніше, дають 500. Демонстрація — `POST /api/orders/{id}/confirm` і `/cancel`.
+3. **FluentValidation** — правила з колишнього `TryValidate` перенесено в `SaveOrderRequestValidator`; `ValidationFilter<T>` викликає валідатор до обробника через `AddEndpointFilter` і при помилках повертає 400 ValidationProblem. Ключі й тексти помилок не змінилися.
+4. **Інтеграційні тести** — `tests/Api.Tests` (`Microsoft.AspNetCore.Mvc.Testing` версії `10.*`, бо 11.x лише для net11.0): POST → 201 + `Location`, GET за `Location` → 200; некоректний POST → 400.
